@@ -335,7 +335,7 @@ results = rag_system.batch_search(queries)
 
 ## 📞 联系我
 
-- **项目主页**: [https://github.com/Zzeng0917/Rag_python-](https://github.com/Zzeng0917/Rag_python-)
+- **项目主页**: [https://github.com/Zzeng0917/Rag_python](https://github.com/Zzeng0917/Rag_python)
 - **问题反馈**: [Issues](https://github.com/your-username/RAG_py/issues)
 - **功能建议**: [Discussions](https://github.com/your-username/RAG_py/discussions)
 - **邮箱**: zxd450273@gmail.com
