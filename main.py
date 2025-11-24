@@ -51,8 +51,8 @@ class RecipeRAGSystem:
             raise FileNotFoundError(f"数据路径不存在: {self.config.data_path}")
 
         # 检查API密钥
-        if not os.getenv("MOONSHOT_API_KEY"):
-            raise ValueError("请设置 MOONSHOT_API_KEY 环境变量")
+        if not os.getenv("GLM_API_KEY"):
+            raise ValueError("请设置 GLM_API_KEY 环境变量")
     
     def initialize_system(self):
         """初始化所有模块"""
@@ -72,7 +72,7 @@ class RecipeRAGSystem:
         # 3. 初始化生成集成模块
         print("🤖 初始化生成集成模块...")
         self.generation_module = GenerationIntegrationModule(
-            model_name=self.config.llm_model,
+            config=self.config,
             temperature=self.config.temperature,
             max_tokens=self.config.max_tokens
         )
@@ -122,7 +122,7 @@ class RecipeRAGSystem:
         print(f"   文档总数: {stats['total_documents']}")
         print(f"   文本块数: {stats['total_chunks']}")
         print(f"   菜品分类: {list(stats['categories'].keys())}")
-        print(f"   难度分布: {stats['difficulties']}")
+        print(f"   价格分布: {stats['price_levels']}")
 
         print("✅ 知识库构建完成！")
     
@@ -249,7 +249,7 @@ class RecipeRAGSystem:
                 break
 
         # 难度关键词
-        difficulty_keywords = DataPreparationModule.get_supported_difficulties()
+        difficulty_keywords = DataPreparationModule.get_supported_price_levels()
         for diff in sorted(difficulty_keywords, key=len, reverse=True):
             if diff in query:
                 filters['difficulty'] = diff

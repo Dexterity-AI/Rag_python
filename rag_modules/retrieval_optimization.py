@@ -58,8 +58,8 @@ class RetrievalOptimizationModule:
             检索到的文档列表
         """
         # 分别获取向量检索和BM25检索结果
-        vector_docs = self.vector_retriever.get_relevant_documents(query)
-        bm25_docs = self.bm25_retriever.get_relevant_documents(query)
+        vector_docs = self.vector_retriever.invoke(query)
+        bm25_docs = self.bm25_retriever.invoke(query)
 
         # 使用RRF重排
         reranked_docs = self._rrf_rerank(vector_docs, bm25_docs)

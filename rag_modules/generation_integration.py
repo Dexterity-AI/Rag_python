@@ -7,47 +7,52 @@ import logging
 from typing import List
 
 from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
-from langchain_community.chat_models.moonshot import MoonshotChat
 from langchain_core.documents import Document
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
+from langchain_openai import ChatOpenAI
 
 logger = logging.getLogger(__name__)
 
 class GenerationIntegrationModule:
     """旅游生成集成模块 - 负责LLM集成和旅游问答生成"""
-    
-    def __init__(self, model_name: str = "kimi-k2-0711-preview", temperature: float = 0.1, max_tokens: int = 2048):
+
+    def __init__(self, config=None, temperature: float = 0.1, max_tokens: int = 2048):
         """
         初始化生成集成模块
-        
+
         Args:
-            model_name: 模型名称
+            config: 配置对象（可选）
             temperature: 生成温度
             max_tokens: 最大token数
         """
-        self.model_name = model_name
+        self.config = config
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.llm = None
-        self.setup_llm()
-    
-    def setup_llm(self):
-        """初始化大语言模型"""
-        logger.info(f"正在初始化LLM: {self.model_name}")
 
-        api_key = os.getenv("MOONSHOT_API_KEY")
+        # 初始化GLM-4模型
+        self.setup_glm4()
+
+    def setup_glm4(self):
+        """初始化GLM-4模型"""
+        logger.info("正在初始化GLM-4模型")
+
+        # 获取API密钥
+        api_key = os.getenv("GLM_API_KEY")
         if not api_key:
-            raise ValueError("请设置 MOONSHOT_API_KEY 环境变量")
+            raise ValueError("请设置环境变量: GLM_API_KEY")
 
-        self.llm = MoonshotChat(
-            model=self.model_name,
+        # 创建GLM-4实例
+        self.llm = ChatOpenAI(
+            model="glm-4",
             temperature=self.temperature,
             max_tokens=self.max_tokens,
-            moonshot_api_key=api_key
+            openai_api_key=api_key,
+            openai_api_base="https://open.bigmodel.cn/api/paas/v4/"
         )
-        
-        logger.info("LLM初始化完成")
+
+        logger.info("GLM-4模型初始化完成")
     
     def generate_basic_answer(self, query: str, context_docs: List[Document]) -> str:
         """
