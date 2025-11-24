@@ -74,8 +74,8 @@ graph TB
 
 1. **克隆项目**
    ```bash
-   git clone https://github.com/your-username/RAG_py.git
-   cd RAG_py
+   git clone [https://github.com/your-username/RAG_py.git](https://github.com/Zzeng0917/Rag_python.git)
+   cd Rag_python
    ```
 
 2. **安装依赖**
