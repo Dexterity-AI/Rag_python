@@ -65,7 +65,7 @@ graph TB
 
 ### 📦 环境要求
 
-- **Python**: 3.8+
+- **Python**: 3.12+
 - **操作系统**: Windows/macOS/Linux
 - **内存**: 建议 8GB+
 - **存储**: 根据文档大小调整
@@ -74,7 +74,7 @@ graph TB
 
 1. **克隆项目**
    ```bash
-   git clone [https://github.com/your-username/RAG_py.git](https://github.com/Zzeng0917/Rag_python.git)
+   git clone https://github.com/Zzeng0917/Rag_python.git
    cd Rag_python
    ```
 
