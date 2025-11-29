@@ -411,3 +411,149 @@ class GraphIndexingModule:
                     continue
 
         return properties
+
+    def get_entities_by_key(self, key: str) -> List[EntityKeyValue]:
+        """
+        通过索引键查找实体
+        返回所有匹配的实体键值对
+        """
+        results = []
+        
+        # 1. 精确匹配
+        entity_ids = self.key_to_entities.get(key, [])
+        for entity_id in entity_ids:
+            entity = self.entity_kv_store.get(entity_id)
+            if entity:
+                results.append(entity)
+        
+        # 2. 如果精确匹配没有结果，尝试模糊匹配
+        if not results:
+            for entity_id, entity in self.entity_kv_store.items():
+                # 检查实体名称是否包含关键词
+                if key in entity.entity_name or entity.entity_name in key:
+                    results.append(entity)
+                # 检查索引键是否包含关键词
+                elif any(key in index_key or index_key in key for index_key in entity.index_keys):
+                    results.append(entity)
+        
+        logger.debug(f"通过键 '{key}' 找到 {len(results)} 个实体")
+        return results
+
+    def get_relations_by_key(self, key: str) -> List[RelationKeyValue]:
+        """
+        通过索引键查找关系
+        返回所有匹配的关系键值对
+        """
+        results = []
+        
+        # 1. 精确匹配
+        relation_ids = self.key_to_relations.get(key, [])
+        for relation_id in relation_ids:
+            relation = self.relation_kv_store.get(relation_id)
+            if relation:
+                results.append(relation)
+        
+        # 2. 如果精确匹配没有结果，尝试模糊匹配
+        if not results:
+            for relation_id, relation in self.relation_kv_store.items():
+                # 检查索引键是否包含关键词
+                if any(key in index_key or index_key in key for index_key in relation.index_keys):
+                    results.append(relation)
+        
+        logger.debug(f"通过键 '{key}' 找到 {len(results)} 个关系")
+        return results
+
+    def create_relation_key_values(self, relationships: List[Tuple[str, str, str]]) -> Dict[str, RelationKeyValue]:
+        """
+        为关系创建键值对结构
+        
+        Args:
+            relationships: 关系列表，格式为 [(source_id, relation_type, target_id), ...]
+        
+        Returns:
+            关系键值对字典
+        """
+        logger.info(f"开始创建关系键值对，关系数量: {len(relationships)}")
+        
+        for source_id, relation_type, target_id in relationships:
+            # 创建唯一的关系ID
+            relation_id = f"{source_id}_{relation_type}_{target_id}"
+            
+            # 获取源实体和目标实体
+            source_entity = self.entity_kv_store.get(source_id)
+            target_entity = self.entity_kv_store.get(target_id)
+            
+            if not source_entity or not target_entity:
+                continue
+            
+            # 创建索引键列表（包含关系类型和实体名称）
+            index_keys = [
+                relation_type,
+                f"{source_entity.entity_name}_{relation_type}",
+                f"{relation_type}_{target_entity.entity_name}",
+                f"{source_entity.entity_name}_{target_entity.entity_name}"
+            ]
+            
+            # 创建关系描述内容
+            value_content = f"{source_entity.entity_name} {relation_type} {target_entity.entity_name}"
+            
+            # 创建关系键值对
+            relation_kv = RelationKeyValue(
+                relation_id=relation_id,
+                index_keys=index_keys,
+                value_content=value_content,
+                relation_type=relation_type,
+                source_entity=source_id,
+                target_entity=target_id,
+                metadata={
+                    "source_name": source_entity.entity_name,
+                    "target_name": target_entity.entity_name,
+                    "source_type": source_entity.entity_type,
+                    "target_type": target_entity.entity_type
+                }
+            )
+            
+            # 存储关系键值对
+            self.relation_kv_store[relation_id] = relation_kv
+            
+            # 更新索引映射
+            for key in index_keys:
+                self.key_to_relations[key].append(relation_id)
+        
+        logger.info(f"关系键值对创建完成，共创建 {len(self.relation_kv_store)} 个关系")
+        return self.relation_kv_store
+
+    def deduplicate_entities_and_relations(self):
+        """
+        去重和优化实体与关系
+        """
+        logger.info("开始去重和优化...")
+        
+        # 实体去重：基于实体名称
+        entity_name_to_ids = defaultdict(list)
+        for entity_id, entity in self.entity_kv_store.items():
+            entity_name_to_ids[entity.entity_name].append(entity_id)
+        
+        # 合并重复实体
+        duplicates = 0
+        for entity_name, entity_ids in entity_name_to_ids.items():
+            if len(entity_ids) > 1:
+                # 保留第一个实体，删除其他重复实体
+                primary_id = entity_ids[0]
+                for duplicate_id in entity_ids[1:]:
+                    if duplicate_id in self.entity_kv_store:
+                        del self.entity_kv_store[duplicate_id]
+                        duplicates += 1
+        
+        logger.info(f"去重完成，删除了 {duplicates} 个重复实体")
+
+    def get_statistics(self) -> Dict[str, int]:
+        """
+        获取图索引统计信息
+        """
+        return {
+            "total_entities": len(self.entity_kv_store),
+            "total_relations": len(self.relation_kv_store),
+            "total_entity_keys": len(self.key_to_entities),
+            "total_relation_keys": len(self.key_to_relations)
+        }

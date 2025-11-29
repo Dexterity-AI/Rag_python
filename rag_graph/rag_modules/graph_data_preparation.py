@@ -26,7 +26,7 @@ class GraphRelation:
     name: str 
     properties: Dict[str, Any]
 
-class GraphDataPreparationMoudule:
+class GraphDataPreparationModule:
 
     #图数据库数据准备模块 - 从neo4j读取数据并转换为文档
 
@@ -62,18 +62,18 @@ class GraphDataPreparationMoudule:
 
     def _connect(self):
         """建立Neo4j连接"""
-        try: 
+        try:
             self.driver = GraphDatabase.driver(
                 self.uri,
-                auth = (self.user, self.password),
-                database = self.database
+                auth = (self.user, self.password)
+                # database参数应该在session级别设置
             )
             logger.info(f"已连接到Neo4j数据库: {self.uri}")
 
-            #测试连接
-            with self.driver.session() as session:
+            #测试连接 - 在session级别指定数据库
+            with self.driver.session(database=self.database) as session:
                 result = session.run("RETURN 1 as test")
-                tets_result = result.single() 
+                tets_result = result.single()
                 if tets_result:
                     logger.info("Neo4j连接测试成功")
         except Exception as e:
@@ -328,7 +328,113 @@ class GraphDataPreparationMoudule:
 
         logger.info("正在构建旅游计划文档...")
 
-        document = []          
+        documents = []
+
+        # 构建城市文档
+        for city in self.cities:
+            doc = Document(
+                page_content=f"城市：{city.name}。{city.properties.get('description', '')}",
+                metadata={
+                    "node_id": city.node_id,
+                    "entity_name": city.name,
+                    "node_type": "City",
+                    "category": "城市",
+                    "doc_type": "city"
+                }
+            )
+            documents.append(doc)
+
+        # 构建景点文档
+        for attraction in self.attractions:
+            doc = Document(
+                page_content=f"景点：{attraction.name}。{attraction.properties.get('description', '')}",
+                metadata={
+                    "node_id": attraction.node_id,
+                    "entity_name": attraction.name,
+                    "node_type": "Attraction",
+                    "category": attraction.properties.get('category', '景点'),
+                    "doc_type": "attraction"
+                }
+            )
+            documents.append(doc)
+
+        # 构建美食文档
+        for food in self.foods:
+            doc = Document(
+                page_content=f"美食：{food.name}。{food.properties.get('description', '')}",
+                metadata={
+                    "node_id": food.node_id,
+                    "entity_name": food.name,
+                    "node_type": "Food",
+                    "category": "美食",
+                    "doc_type": "food"
+                }
+            )
+            documents.append(doc)
+
+        # 构建餐厅文档
+        for restaurant in self.restaurants:
+            doc = Document(
+                page_content=f"餐厅：{restaurant.name}。{restaurant.properties.get('description', '')}",
+                metadata={
+                    "node_id": restaurant.node_id,
+                    "entity_name": restaurant.name,
+                    "node_type": "Restaurant",
+                    "category": "餐厅",
+                    "doc_type": "restaurant"
+                }
+            )
+            documents.append(doc)
+
+        # 构建住宿文档
+        for hotel in self.hotels:
+            doc = Document(
+                page_content=f"住宿：{hotel.name}。{hotel.properties.get('description', '')}",
+                metadata={
+                    "node_id": hotel.node_id,
+                    "entity_name": hotel.name,
+                    "node_type": "Hotel",
+                    "category": "住宿",
+                    "doc_type": "hotel"
+                }
+            )
+            documents.append(doc)
+
+        # 构建节庆文档
+        for festival in self.festivals:
+            doc = Document(
+                page_content=f"节庆：{festival.name}。{festival.properties.get('description', '')}",
+                metadata={
+                    "node_id": festival.node_id,
+                    "entity_name": festival.name,
+                    "node_type": "Festival",
+                    "category": "节庆",
+                    "doc_type": "festival"
+                }
+            )
+            documents.append(doc)
+
+        # 构建特产文档
+        for specialty in self.specialties:
+            doc = Document(
+                page_content=f"特产：{specialty.name}。{specialty.properties.get('description', '')}",
+                metadata={
+                    "node_id": specialty.node_id,
+                    "entity_name": specialty.name,
+                    "node_type": "Specialty",
+                    "category": "特产",
+                    "doc_type": "specialty"
+                }
+            )
+            documents.append(doc)
+
+        # 设置文档列表
+        self.documents = documents
+        self.chunks = []
+
+        logger.info(f"已构建 {len(documents)} 个旅游实体文档")
+
+        return documents          
     
     def chunk_douments(self, chunk_size: int = 5000, chunk_overlap: int = 50) -> List[Document]:
         """
