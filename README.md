@@ -137,8 +137,11 @@ graph TB
 
 2. **启动基础服务**
    ```bash
+   conda create -n rag_graph python=3.12.7
+   conda activate rag_graph 
    cd rag_graph
-   docker-compose up -d
+   docker-compose up -d --build 
+   （milvus 与 minio）
    ```
 
 3. **安装依赖**
@@ -148,8 +151,7 @@ graph TB
 
 4. **配置环境变量**
    ```bash
-   # 创建 .env 文件
-   cat > .env << EOF
+   # 修改.env 文件
    # Neo4j 配置
    NEO4J_URI=neo4j://127.0.0.1:7687
    NEO4J_USER=neo4j
