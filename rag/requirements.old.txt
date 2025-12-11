@@ -38,3 +38,8 @@ chardet>=5.0.0
 # 网页处理
 beautifulsoup4>=4.12.0
 lxml>=4.9.0
+
+
+# 暂时补充
+neo4j
+hf_xet

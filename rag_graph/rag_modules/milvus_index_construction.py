@@ -1,7 +1,7 @@
 """
 Milvus索引构建模块
 """
-
+# pyright: reportOptionalMemberAccess=false
 import logging
 import time
 from typing import List, Dict, Any, Optional

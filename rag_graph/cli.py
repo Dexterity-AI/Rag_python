@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+#pyright: reportOptionalMemberAccess=false
 """
 GraphRAG CLI - 类似 Kode-cli 风格的命令行界面
 基于图RAG的智能旅游助手
@@ -85,7 +86,7 @@ def get_rag_system():
 class GraphRAGApp:
     """GraphRAG 应用类 - 封装系统逻辑"""
     
-    def __init__(self, console: Console = None):
+    def __init__(self, console: Console | None = None):
         self.console = console or Console()
         self.theme = get_theme()
         self.system = None
