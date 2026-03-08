@@ -335,6 +335,7 @@ class HybridRetrievalModule:
                 
                 // 合并结果
                 UNWIND attractions + cities + regions as node
+                WITH COALESCE(node, NULL) as node
                 WHERE node IS NOT NULL
                 RETURN DISTINCT
                     node.nodeId as node_id,
