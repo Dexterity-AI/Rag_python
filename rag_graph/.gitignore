@@ -1,0 +1,71 @@
+# =====================
+# 敏感配置文件
+# =====================
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+secrets.json
+credentials.json
+
+# =====================
+# Python
+# =====================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# =====================
+# 虚拟环境
+# =====================
+venv/
+ENV/
+env/
+.venv/
+
+# =====================
+# IDE
+# =====================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# =====================
+# 日志和缓存
+# =====================
+*.log
+logs/
+cache/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# =====================
+# 数据文件 (根据需要调整)
+# =====================
+*.db
+*.sqlite
+*.sqlite3
+data/

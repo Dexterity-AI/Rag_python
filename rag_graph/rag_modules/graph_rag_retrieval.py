@@ -12,6 +12,7 @@ from enum import Enum
 
 from langchain_core.documents import Document
 from neo4j import GraphDatabase
+from cache import get_cache_manager
 
 logger = logging.getLogger(__name__)
 
@@ -67,11 +68,15 @@ class GraphRAGRetrieval:
         self.config = config
         self.llm_client = llm_client
         self.driver = None
-        
+
         # 图结构缓存
         self.entity_cache = {}
         self.relation_cache = {}
         self.subgraph_cache = {}
+
+        # 初始化图查询缓存
+        cache_manager = get_cache_manager()
+        self.graph_cache = cache_manager.graph_cache
         
     def initialize(self):
         """初始化图RAG检索系统"""
@@ -183,9 +188,31 @@ class GraphRAGRetrieval:
                 temperature=0.1,
                 max_tokens=1000
             )
-            
-            result = json.loads(response.choices[0].message.content.strip())
-            
+
+            content = response.choices[0].message.content
+            if not content:
+                raise ValueError("LLM 返回空响应")
+
+            content = content.strip()
+
+            # 清理 markdown 代码块
+            if content.startswith("```"):
+                lines = content.split("\n")
+                if lines[0].startswith("```"):
+                    lines = lines[1:]
+                if lines and lines[-1].strip() == "```":
+                    lines = lines[:-1]
+                content = "\n".join(lines).strip()
+
+            # 提取JSON内容
+            json_start = content.find('{')
+            json_end = content.rfind('}')
+            if json_start == -1 or json_end == -1 or json_end <= json_start:
+                raise ValueError(f"响应中未找到有效的JSON: {content[:200]}")
+            content = content[json_start:json_end + 1]
+
+            result = json.loads(content)
+
             return GraphQuery(
                 query_type=QueryType(result.get("query_type", "subgraph")),
                 source_entities=result.get("source_entities", []),
@@ -194,7 +221,7 @@ class GraphRAGRetrieval:
                 max_depth=result.get("max_depth", 2),
                 max_nodes=50
             )
-            
+
         except Exception as e:
             logger.error(f"查询意图理解失败: {e}")
             # 降级方案：默认子图查询
@@ -226,6 +253,11 @@ class GraphRAGRetrieval:
                 
                 # 根据查询类型选择不同的遍历策略
                 if graph_query.query_type == QueryType.MULTI_HOP:
+                    # 构建目标标签过滤条件
+                    target_filter = ""
+                    if target_entities:
+                        target_filter = "AND ANY(label IN labels(target) WHERE label IN $target_labels)"
+
                     cypher_query = f"""
                     // 多跳推理查询
                     UNWIND $source_entities as source_name
@@ -235,7 +267,7 @@ class GraphRAGRetrieval:
                     // 执行多跳遍历
                     MATCH path = (source)-[*1..{max_depth}]-(target)
                     WHERE NOT source = target
-                    {"AND ANY(label IN labels(target) WHERE label IN $target_labels)" if target_entities else ""}
+                    {target_filter}
 
                     // 计算路径相关性
                     WITH path, source, target,
@@ -243,10 +275,9 @@ class GraphRAGRetrieval:
                          relationships(path) as rels,
                          nodes(path) as path_nodes
 
-                    // 路径评分：短路径 + 高度数节点 + 关系类型匹配
+                    // 路径评分：短路径 + 关系类型匹配（简化计算以提高兼容性）
                     WITH path, source, target, path_len, rels, path_nodes,
                          (1.0 / path_len) +
-                         (REDUCE(s = 0.0, n IN path_nodes | s + COUNT { (n)--() }) / 10.0 / size(path_nodes)) +
                          (CASE WHEN ANY(r IN rels WHERE type(r) IN $relation_types) THEN 0.3 ELSE 0.0 END) as relevance
 
                     ORDER BY relevance DESC
@@ -415,46 +446,62 @@ class GraphRAGRetrieval:
     def graph_rag_search(self, query: str, top_k: int = 5) -> List[Document]:
         """
         图RAG主搜索接口：整合所有图RAG能力
+        支持缓存机制
         """
         logger.info(f"开始图RAG检索: {query}")
-        
+
         if not self.driver:
             logger.warning("Neo4j连接未建立，返回空结果")
             return []
-        
+
         # 1. 查询意图理解
         graph_query = self.understand_graph_query(query)
-        logger.info(f"查询类型: {graph_query.query_type.value}")
-        
+        query_type = graph_query.query_type.value
+        source_entities = graph_query.source_entities
+        logger.info(f"查询类型: {query_type}")
+
+        # 2. 检查缓存
+        if self.graph_cache:
+            cached_result = self.graph_cache.get(query_type, source_entities)
+            if cached_result is not None:
+                logger.info(f"图RAG缓存命中: {query[:50]}...")
+                return cached_result[:top_k]
+
         results = []
-        
+
         try:
-            # 2. 根据查询类型执行不同策略
+            # 3. 根据查询类型执行不同策略
             if graph_query.query_type in [QueryType.MULTI_HOP, QueryType.PATH_FINDING]:
                 # 多跳遍历
                 paths = self.multi_hop_traversal(graph_query)
                 results.extend(self._paths_to_documents(paths, query))
-                
+
             elif graph_query.query_type == QueryType.SUBGRAPH:
                 # 子图提取
                 subgraph = self.extract_knowledge_subgraph(graph_query)
-                
+
                 # 图结构推理
                 reasoning_chains = self.graph_structure_reasoning(subgraph, query)
-                
+
                 results.extend(self._subgraph_to_documents(subgraph, reasoning_chains, query))
-                
+
             elif graph_query.query_type == QueryType.ENTITY_RELATION:
                 # 实体关系查询
                 paths = self.multi_hop_traversal(graph_query)
                 results.extend(self._paths_to_documents(paths, query))
-            
-            # 3. 图结构相关性排序
+
+            # 4. 图结构相关性排序
             results = self._rank_by_graph_relevance(results, query)
-            
-            logger.info(f"图RAG检索完成，返回 {len(results[:top_k])} 个结果")
-            return results[:top_k]
-            
+
+            # 5. 缓存结果
+            final_results = results[:top_k]
+            if self.graph_cache:
+                self.graph_cache.set(query_type, source_entities, final_results)
+                logger.debug(f"图RAG结果已缓存: {query[:50]}...")
+
+            logger.info(f"图RAG检索完成，返回 {len(final_results)} 个结果")
+            return final_results
+
         except Exception as e:
             logger.error(f"图RAG检索失败: {e}")
             return []

@@ -73,8 +73,8 @@ class GraphDataPreparationModule:
             #测试连接 - 在session级别指定数据库
             with self.driver.session(database=self.database) as session:
                 result = session.run("RETURN 1 as test")
-                tets_result = result.single()
-                if tets_result:
+                test_result = result.single()
+                if test_result:
                     logger.info("Neo4j连接测试成功")
         except Exception as e:
             logger.error(f"连接Neo4j失败: {e}")
@@ -436,7 +436,7 @@ class GraphDataPreparationModule:
 
         return documents          
     
-    def chunk_douments(self, chunk_size: int = 5000, chunk_overlap: int = 50) -> List[Document]:
+    def chunk_documents(self, chunk_size: int = 5000, chunk_overlap: int = 50) -> List[Document]:
         """
         对文档进行分块处理
 

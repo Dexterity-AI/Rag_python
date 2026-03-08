@@ -6,15 +6,30 @@ RAG Graph UI 组件包
 from .theme import Theme, get_theme
 from .logo import Logo, show_logo
 from .spinner import Spinner, SpinnerContext
-from .repl import REPL, StreamingREPL
+from .progress import QueryProgress, SimpleProgress, AnimatedProgress
+from .thinking import (
+    ThinkingIndicator,
+    CompactThinkingIndicator,
+    MinimalThinkingIndicator,
+    StepThinkingIndicator,
+)
+from .repl import REPL, StreamingREPL, ProgressREPL
 
 __all__ = [
     'Theme',
-    'get_theme', 
+    'get_theme',
     'Logo',
     'show_logo',
     'Spinner',
     'SpinnerContext',
+    'QueryProgress',
+    'SimpleProgress',
+    'AnimatedProgress',
+    'ThinkingIndicator',
+    'CompactThinkingIndicator',
+    'MinimalThinkingIndicator',
+    'StepThinkingIndicator',
     'REPL',
-    'StreamingREPL'
+    'StreamingREPL',
+    'ProgressREPL'
 ]

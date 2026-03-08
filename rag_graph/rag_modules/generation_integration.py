@@ -13,6 +13,7 @@ from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 from openai import OpenAI
 from dotenv import load_dotenv
+from cache import get_cache_manager
 
 # 加载环境变量
 load_dotenv()
@@ -40,6 +41,10 @@ class GenerationIntegrationModule:
 
         # 初始化LLM模型
         self.setup_llm()
+
+        # 初始化LLM缓存
+        cache_manager = get_cache_manager()
+        self.llm_cache = cache_manager.llm_cache
 
     def setup_llm(self):
         """初始化LLM模型"""
@@ -89,6 +94,7 @@ class GenerationIntegrationModule:
         """
         智能统一答案生成
         自动适应不同类型的查询，无需预先分类
+        支持缓存机制
 
         Args:
             question: 用户问题
@@ -97,6 +103,19 @@ class GenerationIntegrationModule:
         Returns:
             生成的回答
         """
+        # 尝试从缓存获取
+        if self.llm_cache:
+            cached_response = self.llm_cache.get_for_generation(
+                question=question,
+                documents=documents,
+                model=self.model_name,
+                temperature=self.temperature,
+                max_tokens=self.max_tokens
+            )
+            if cached_response is not None:
+                logger.info(f"LLM缓存命中: {question[:50]}...")
+                return cached_response
+
         # 构建上下文
         context_parts = []
 
@@ -140,7 +159,21 @@ class GenerationIntegrationModule:
                 max_tokens=self.max_tokens
             )
 
-            return response.choices[0].message.content.strip()
+            result = response.choices[0].message.content.strip()
+
+            # 缓存结果
+            if self.llm_cache:
+                self.llm_cache.set_for_generation(
+                    question=question,
+                    documents=documents,
+                    response=result,
+                    model=self.model_name,
+                    temperature=self.temperature,
+                    max_tokens=self.max_tokens
+                )
+                logger.debug(f"LLM结果已缓存: {question[:50]}...")
+
+            return result
 
         except Exception as e:
             logger.error(f"答案生成失败: {e}")

@@ -23,7 +23,7 @@ from prompt_toolkit.formatted_text import HTML
 
 from .theme import get_theme
 from .logo import Logo, PRODUCT_NAME
-from .spinner import Spinner, SpinnerContext
+from .thinking import ThinkingIndicator, StepThinkingIndicator
 
 
 @dataclass
@@ -231,9 +231,18 @@ class REPL:
                 if self.on_query:
                     self._render_user_message(user_input)
                     self._loading = True
-                    
+
                     try:
-                        result = self.on_query(user_input)
+                        # 使用闪烁的星指示器显示思考状态
+                        with ThinkingIndicator(
+                            console=self.console,
+                            message="Thinking",
+                            show_elapsed=True,
+                            show_detail=True,
+                        ) as thinking:
+                            thinking.update(detail="分析查询意图...")
+                            result = self.on_query(user_input)
+
                         if result:
                             self._render_assistant_message(str(result))
                     except KeyboardInterrupt:
@@ -271,44 +280,165 @@ class REPL:
 
 class StreamingREPL(REPL):
     """支持流式输出的 REPL"""
-    
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.on_stream_query: Optional[Callable] = None
-    
+
     def set_stream_handler(self, handler: Callable) -> None:
         """设置流式查询处理器"""
         self.on_stream_query = handler
-    
+
     def handle_streaming_response(self, user_input: str) -> None:
         """处理流式响应"""
         if not self.on_stream_query:
             return
-        
+
         self._render_user_message(user_input)
         self.console.print()
         self.console.print(f"[{self.theme.assistant}]🎯 回答:[/]")
         self.console.print()
-        
+
         interrupted = False
-        
+
         try:
-            with SpinnerContext("智能分析中", self.console) as spinner:
-                # 先获取分析结果
-                pass
-            
             # 流式输出回答
             for chunk in self.on_stream_query(user_input):
                 if chunk:
                     self.console.print(chunk, end="")
-            
+
             self.console.print()  # 换行
-            
+
         except KeyboardInterrupt:
             interrupted = True
             self.console.print(f"\n\n[{self.theme.warning}]⏹️ 回答已被中断[/]")
         except Exception as e:
             self.console.print(f"\n[{self.theme.error}]❌ 错误: {e}[/]")
-        
+
         if not interrupted:
             self.console.print()
+
+
+class ProgressREPL(REPL):
+    """
+    带详细进度显示的 REPL
+    展示查询处理的各个阶段
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.show_detailed_progress = True
+
+    def run(self) -> None:
+        """运行 REPL 循环 - 带详细进度显示"""
+        self._running = True
+
+        while self._running:
+            try:
+                # 使用 prompt_toolkit 获取用户输入
+                user_input = pt_prompt(
+                    self._get_prompt_message(),
+                    history=self._history,
+                    style=self._pt_style,
+                    enable_history_search=True,
+                )
+
+                if not user_input or not user_input.strip():
+                    continue
+
+                user_input = user_input.strip()
+
+                # 处理命令
+                if self._handle_command(user_input):
+                    continue
+
+                # 处理查询 - 带详细进度显示
+                if self.on_query:
+                    self._render_user_message(user_input)
+                    self._loading = True
+
+                    try:
+                        if self.show_detailed_progress:
+                            # 使用详细进度显示
+                            result = self._run_query_with_progress(user_input)
+                        else:
+                            # 使用闪烁的星指示器
+                            with ThinkingIndicator(
+                                console=self.console,
+                                message="Thinking",
+                                show_elapsed=True,
+                            ) as thinking:
+                                result = self.on_query(user_input)
+
+                        if result:
+                            self._render_assistant_message(str(result))
+                    except KeyboardInterrupt:
+                        self._render_status("\n⏹️ 操作已中断", "warning")
+                    except Exception as e:
+                        self._render_status(f"\n❌ 处理错误: {e}", "error")
+                    finally:
+                        self._loading = False
+
+            except KeyboardInterrupt:
+                # Ctrl+C 处理
+                current_time = time.time()
+                if current_time - self._last_interrupt_time < self._double_interrupt_window:
+                    self._interrupt_count += 1
+                    if self._interrupt_count >= 2:
+                        self.console.print(f"\n\n[{self.theme.warning}]👋 检测到连续两次 Ctrl+C，正在退出系统...[/]")
+                        self._running = False
+                        break
+                    else:
+                        self.console.print(f"\n[{self.theme.warning}]⚠️ Ctrl+C ({self._interrupt_count}/2) - 再按一次退出系统[/]")
+                else:
+                    self._interrupt_count = 1
+                    self.console.print(f"\n[{self.theme.info}]💡 提示: 连续按两次 Ctrl+C 退出系统[/]")
+
+                self._last_interrupt_time = current_time
+                continue
+
+            except EOFError:
+                break
+            except Exception as e:
+                self._render_status(f"⚠️ 错误: {e}", "error")
+
+        self.console.print(f"\n[{self.theme.success}]👋 感谢使用 {PRODUCT_NAME}！[/]")
+
+    def _run_query_with_progress(self, user_input: str) -> Any:
+        """运行查询并显示详细进度"""
+        # 创建进度显示器
+        progress = QueryProgress(self.console)
+
+        # 添加处理阶段
+        progress.add_stage("查询分析")
+        progress.add_stage("路由决策")
+        progress.add_stage("检索执行")
+        progress.add_stage("结果生成")
+
+        result = None
+
+        with progress:
+            # 阶段1: 查询分析
+            progress.start_stage("查询分析", "理解用户意图...")
+            time.sleep(0.3)  # 给用户视觉反馈
+            progress.complete_stage("查询分析", f"'{user_input[:30]}...'")
+
+            # 阶段2: 路由决策
+            progress.start_stage("路由决策", "选择检索策略...")
+            time.sleep(0.2)
+            progress.complete_stage("路由决策", "混合检索")
+
+            # 阶段3: 检索执行
+            progress.start_stage("检索执行", "搜索知识库...")
+
+            # 执行实际查询
+            result = self.on_query(user_input)
+
+            progress.complete_stage("检索执行", "完成")
+
+            # 阶段4: 结果生成
+            progress.start_stage("结果生成", "组织回答...")
+            time.sleep(0.2)
+            progress.complete_stage("结果生成", "完成")
+
+        return result

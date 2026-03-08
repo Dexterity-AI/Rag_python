@@ -125,7 +125,7 @@ class IntelligentQueryRouter:
                 raise ValueError("LLM 返回空响应")
             
             content = content.strip()
-            
+
             # 清理 markdown 代码块
             if content.startswith("```"):
                 # 移除开头的 ```json 或 ```
@@ -136,7 +136,14 @@ class IntelligentQueryRouter:
                 if lines and lines[-1].strip() == "```":
                     lines = lines[:-1]
                 content = "\n".join(lines).strip()
-            
+
+            # 提取JSON内容（如果响应包含其他文本）
+            json_start = content.find('{')
+            json_end = content.rfind('}')
+            if json_start == -1 or json_end == -1 or json_end <= json_start:
+                raise ValueError(f"响应中未找到有效的JSON: {content[:200]}")
+            content = content[json_start:json_end + 1]
+
             result = json.loads(content)
             
             analysis = QueryAnalysis(
@@ -158,27 +165,117 @@ class IntelligentQueryRouter:
             return self._rule_based_analysis(query)
     
     def _rule_based_analysis(self, query: str) -> QueryAnalysis:
-        """基于规则的降级分析"""
-        # 简单的规则判断
-        complexity_keywords = ["为什么", "如何", "关系", "影响", "原因", "比较", "区别"]
-        relation_keywords = ["配", "搭配", "组合", "相关", "联系", "连接"]
-        
-        complexity = sum(1 for kw in complexity_keywords if kw in query) / len(complexity_keywords)
-        relation_intensity = sum(1 for kw in relation_keywords if kw in query) / len(relation_keywords)
-        
-        if complexity > 0.3 or relation_intensity > 0.3:
+        """
+        基于规则的分析
+        快速、可靠，不依赖LLM
+        """
+        query_lower = query.lower()
+
+        # 复杂度指标
+        complexity_keywords = ["为什么", "如何", "关系", "影响", "原因", "比较", "区别", "推荐路线", "攻略"]
+        complexity = min(1.0, sum(1 for kw in complexity_keywords if kw in query_lower) / 3)
+
+        # 关系密度指标
+        relation_keywords = ["配", "搭配", "组合", "相关", "联系", "连接", "附近", "周边", "一起", "和"]
+        relation_intensity = min(1.0, sum(1 for kw in relation_keywords if kw in query_lower) / 3)
+
+        # 实体数量估计（简单的分词）
+        common_entities = ["北京", "上海", "故宫", "长城", "天安门", "颐和园", "西藏", "拉萨", "西安", "杭州"]
+        entity_count = sum(1 for entity in common_entities if entity in query)
+        entity_count = max(1, entity_count + len([w for w in query.split() if len(w) > 2]) // 3)
+
+        # 决策逻辑
+        if complexity > 0.5 or relation_intensity > 0.5:
             strategy = SearchStrategy.GRAPH_RAG
+            confidence = 0.75
+        elif "推荐" in query or "哪些" in query or "有什么" in query:
+            strategy = SearchStrategy.COMBINED
+            confidence = 0.7
         else:
             strategy = SearchStrategy.HYBRID_TRADITIONAL
-            
+            confidence = 0.8
+
         return QueryAnalysis(
             query_complexity=complexity,
             relationship_intensity=relation_intensity,
-            reasoning_required=complexity > 0.3,
-            entity_count=len(query.split()),
+            reasoning_required=complexity > 0.4,
+            entity_count=entity_count,
             recommended_strategy=strategy,
-            confidence=0.6,
-            reasoning="基于规则的简单分析"
+            confidence=confidence,
+            reasoning=f"基于规则分析: 复杂度{complexity:.2f}, 关系密度{relation_intensity:.2f}"
+        )
+
+    def _llm_based_analysis(self, query: str) -> QueryAnalysis:
+        """
+        基于LLM的深度分析
+        用于复杂查询场景
+        """
+        analysis_prompt = f"""
+        作为RAG系统的查询分析专家，请深度分析以下查询的特征：
+
+        查询：{query}
+
+        请从以下维度分析：
+
+        1. 查询复杂度 (0-1)：
+           - 0.0-0.3: 简单信息查找
+           - 0.4-0.7: 中等复杂度
+           - 0.8-1.0: 高复杂度推理
+
+        2. 关系密集度 (0-1)：
+           - 0.0-0.3: 单一实体信息
+           - 0.4-0.7: 实体间关系
+           - 0.8-1.0: 复杂关系网络
+
+        3. 推理需求：是否需要多跳推理、因果分析、对比分析？
+
+        4. 实体识别：查询中包含多少个明确实体？
+
+        推荐策略：hybrid_traditional（简单查找）、graph_rag（复杂推理）、combined（两者结合）
+
+        只返回JSON，不要其他文字：
+        {{"query_complexity": 0.5, "relationship_intensity": 0.5, "reasoning_required": false, "entity_count": 2, "recommended_strategy": "hybrid_traditional", "confidence": 0.8, "reasoning": "分析理由"}}
+        """
+
+        response = self.llm_client.chat.completions.create(
+            model=self.config.llm_model,
+            messages=[{"role": "user", "content": analysis_prompt}],
+            temperature=0.1,
+            max_tokens=400
+        )
+
+        content = response.choices[0].message.content
+        if not content:
+            raise ValueError("LLM 返回空响应")
+
+        content = content.strip()
+
+        # 清理 markdown 代码块
+        if content.startswith("```"):
+            lines = content.split("\n")
+            if lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+            content = "\n".join(lines).strip()
+
+        # 提取JSON
+        json_start = content.find('{')
+        json_end = content.rfind('}')
+        if json_start == -1 or json_end == -1 or json_end <= json_start:
+            raise ValueError(f"响应中未找到有效的JSON")
+        content = content[json_start:json_end + 1]
+
+        result = json.loads(content)
+
+        return QueryAnalysis(
+            query_complexity=result.get("query_complexity", 0.5),
+            relationship_intensity=result.get("relationship_intensity", 0.5),
+            reasoning_required=result.get("reasoning_required", False),
+            entity_count=result.get("entity_count", 1),
+            recommended_strategy=SearchStrategy(result.get("recommended_strategy", "hybrid_traditional")),
+            confidence=result.get("confidence", 0.5),
+            reasoning=result.get("reasoning", "LLM分析")
         )
     
     def route_query(self, query: str, top_k: int = 5) -> Tuple[List[Document], QueryAnalysis]:

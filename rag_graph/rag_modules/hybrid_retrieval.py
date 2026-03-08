@@ -13,6 +13,7 @@ from langchain_core.documents import Document
 from langchain_community.retrievers import BM25Retriever
 from neo4j import GraphDatabase
 from .graph_indexing import GraphIndexingModule
+from cache import VectorSearchCache, get_cache_manager
 
 logger = logging.getLogger(__name__)
 
@@ -44,11 +45,15 @@ class HybridRetrievalModule:
         self.llm_client = llm_client
         self.driver = None
         self.bm25_retriever = None
-        
+
         # 图索引模块
         self.graph_indexing = GraphIndexingModule(config, llm_client)
         self.graph_indexed = False
         self.graph_data_module = None
+
+        # 初始化向量检索缓存
+        cache_manager = get_cache_manager()
+        self.vector_cache = cache_manager.vector_cache
 
     def initialize(self, chunks: List[Document]):
         """初始化检索系统"""
@@ -238,7 +243,7 @@ class HybridRetrievalModule:
                 raise ValueError("LLM 返回空响应")
             
             content = content.strip()
-            
+
             # 清理 markdown 代码块
             if content.startswith("```"):
                 # 移除开头的 ```json 或 ```
@@ -249,7 +254,14 @@ class HybridRetrievalModule:
                 if lines and lines[-1].strip() == "```":
                     lines = lines[:-1]
                 content = "\n".join(lines).strip()
-            
+
+            # 提取JSON内容（如果响应包含其他文本）
+            json_start = content.find('{')
+            json_end = content.rfind('}')
+            if json_start == -1 or json_end == -1 or json_end <= json_start:
+                raise ValueError(f"响应中未找到有效的JSON: {content[:200]}")
+            content = content[json_start:json_end + 1]
+
             result = json.loads(content)
             entity_keywords = result.get("entity_keywords", [])
             topic_keywords = result.get("topic_keywords", [])
@@ -258,11 +270,46 @@ class HybridRetrievalModule:
             return entity_keywords, topic_keywords
             
         except Exception as e:
-            logger.error(f"关键词提取失败: {e}")
-            # 降级方案：简单的关键词分割
-            keywords = query.split()
-            return keywords[:3], keywords[3:6] if len(keywords) > 3 else keywords
-    
+            logger.warning(f"关键词提取失败: {e}，使用智能分词降级方案")
+            # 更智能的降级方案：提取查询中的关键名词
+            return self._extract_keywords_rule_based(query)
+
+    def _extract_keywords_rule_based(self, query: str) -> Tuple[List[str], List[str]]:
+        """
+        基于规则的关键词提取（不依赖LLM）
+        """
+        # 常见的停用词
+        stop_words = {'的', '了', '是', '我', '有', '和', '就', '不', '人', '都', '一', '一个', '上', '也', '很', '到', '说', '要', '去', '你', '会', '着', '没有', '看', '好', '自己', '这', '那', '什么', '吗', '吧', '呢', '啊', '哦', '嗯'}
+
+        # 实体关键词（名词）- 从查询中提取
+        entity_keywords = []
+        topic_keywords = []
+
+        # 简单的分词（按空格和标点分割）
+        import re
+        words = re.findall(r'[\u4e00-\u9fff]+|[a-zA-Z]+', query)
+
+        # 旅游相关的主题词
+        topic_patterns = ['景点', '旅游', '旅行', '美食', '酒店', '住宿', '交通', '攻略', '路线', '季节', '门票', '推荐', '特色', '文化', '历史', '自然', '风景']
+
+        for word in words:
+            if len(word) >= 2 and word not in stop_words:
+                if any(pattern in word for pattern in topic_patterns):
+                    topic_keywords.append(word)
+                else:
+                    entity_keywords.append(word)
+
+        # 确保至少有一些关键词
+        if not entity_keywords:
+            # 如果实体为空，把整个查询作为实体关键词
+            entity_keywords = [w for w in words if len(w) >= 2][:3]
+        if not topic_keywords:
+            # 如果主题为空，添加一些通用主题
+            topic_keywords = ['旅游']
+
+        logger.info(f"规则提取关键词 - 实体: {entity_keywords}, 主题: {topic_keywords}")
+        return entity_keywords[:5], topic_keywords[:5]
+
     def entity_level_retrieval(self, entity_keywords: List[str], top_k: int = 5) -> List[RetrievalResult]:
         """
         实体级检索：专注于具体实体和关系
@@ -316,27 +363,58 @@ class HybridRetrievalModule:
         try:
             with self.driver.session() as session:
                 # 使用简单的 CONTAINS 查询，不依赖全文索引
+                # 修复：简化查询，避免复杂的WITH传递问题
                 cypher_query = """
                 UNWIND $keywords as keyword
+
                 // 搜索景点
                 OPTIONAL MATCH (a:Attraction)
                 WHERE a.name CONTAINS keyword OR a.description CONTAINS keyword
-                WITH keyword, collect(DISTINCT a)[0..$per_type_limit] as attractions
-                
+                WITH keyword, a as node WHERE node IS NOT NULL
+                RETURN DISTINCT
+                    node.nodeId as node_id,
+                    node.name as name,
+                    node.description as description,
+                    node.category as category,
+                    node.ticket_price as ticket_price,
+                    node.address as address,
+                    node.best_time as best_time,
+                    node.highlights as highlights,
+                    labels(node) as labels,
+                    head(labels(node)) as node_type,
+                    keyword as matched_keyword,
+                    1.0 as score
+                LIMIT $limit
+
+                UNION
+
+                UNWIND $keywords as keyword
                 // 搜索城市
                 OPTIONAL MATCH (c:City)
                 WHERE c.name CONTAINS keyword OR c.description CONTAINS keyword
-                WITH keyword, attractions, collect(DISTINCT c)[0..$per_type_limit] as cities
-                
+                WITH keyword, c as node WHERE node IS NOT NULL
+                RETURN DISTINCT
+                    node.nodeId as node_id,
+                    node.name as name,
+                    node.description as description,
+                    node.category as category,
+                    node.ticket_price as ticket_price,
+                    node.address as address,
+                    node.best_time as best_time,
+                    node.highlights as highlights,
+                    labels(node) as labels,
+                    head(labels(node)) as node_type,
+                    keyword as matched_keyword,
+                    1.0 as score
+                LIMIT $limit
+
+                UNION
+
+                UNWIND $keywords as keyword
                 // 搜索地区
                 OPTIONAL MATCH (r:Region)
                 WHERE r.name CONTAINS keyword OR r.description CONTAINS keyword
-                WITH keyword, attractions, cities, collect(DISTINCT r)[0..$per_type_limit] as regions
-                
-                // 合并结果
-                UNWIND attractions + cities + regions as node
-                WITH COALESCE(node, NULL) as node
-                WHERE node IS NOT NULL
+                WITH keyword, r as node WHERE node IS NOT NULL
                 RETURN DISTINCT
                     node.nodeId as node_id,
                     node.name as name,
@@ -355,8 +433,7 @@ class HybridRetrievalModule:
 
                 result = session.run(cypher_query, {
                     "keywords": keywords,
-                    "limit": limit,
-                    "per_type_limit": max(3, limit // 3)
+                    "limit": limit
                 })
 
                 for record in result:
@@ -716,11 +793,19 @@ class HybridRetrievalModule:
     def vector_search_enhanced(self, query: str, top_k: int = 5) -> List[Document]:
         """
         增强的向量检索：结合图信息
+        支持缓存机制
         """
         try:
+            # 尝试从缓存获取
+            if self.vector_cache:
+                cached_result = self.vector_cache.get(query, top_k)
+                if cached_result is not None:
+                    logger.info(f"向量检索缓存命中: {query[:50]}...")
+                    return cached_result
+
             # 使用Milvus进行向量检索
             vector_docs = self.milvus_module.similarity_search(query, k=top_k*2)
-            
+
             # 用图信息增强结果并转换为Document对象
             enhanced_docs = []
             for result in vector_docs:
@@ -728,7 +813,7 @@ class HybridRetrievalModule:
                 content = result.get("text", "")
                 metadata = result.get("metadata", {})
                 node_id = metadata.get("node_id")
-                
+
                 if node_id:
                     # 从图中获取邻居信息
                     neighbors = self._get_node_neighbors(node_id)
@@ -736,14 +821,14 @@ class HybridRetrievalModule:
                         # 将邻居信息添加到内容中
                         neighbor_info = f"\n相关信息: {', '.join(neighbors[:3])}"
                         content += neighbor_info
-                
+
                 # 确保recipe_name字段正确设置
                 recipe_name = metadata.get("recipe_name", "未知菜品")
-                
+
                 # 调试：打印向量得分
                 vector_score = result.get("score", 0.0)
                 logger.debug(f"向量检索得分: {recipe_name} = {vector_score}")
-                
+
                 # 创建Document对象
                 doc = Document(
                     page_content=content,
@@ -755,9 +840,15 @@ class HybridRetrievalModule:
                     }
                 )
                 enhanced_docs.append(doc)
-                
-            return enhanced_docs[:top_k]
-            
+
+            # 缓存结果
+            result_docs = enhanced_docs[:top_k]
+            if self.vector_cache:
+                self.vector_cache.set(query, result_docs, top_k)
+                logger.debug(f"向量检索结果已缓存: {query[:50]}...")
+
+            return result_docs
+
         except Exception as e:
             logger.error(f"增强向量检索失败: {e}")
             return []

@@ -14,7 +14,12 @@ import os
 import sys
 import time
 import logging
+import warnings
 from typing import Optional
+
+# 禁用 urllib3 警告
+warnings.filterwarnings('ignore', message='urllib3 .* or chardet .* doesn\'t match a supported version')
+warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 import typer
 from rich.console import Console
@@ -26,7 +31,7 @@ from rich import print as rprint
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # 导入 UI 组件
-from ui import get_theme, Logo, SpinnerContext, REPL, StreamingREPL
+from ui import get_theme, Logo, REPL, StreamingREPL
 
 # 创建 Typer 应用
 app = typer.Typer(
@@ -69,7 +74,7 @@ def get_rag_system():
     )
     from rag_modules.hybrid_retrieval import HybridRetrievalModule
     from rag_modules.graph_rag_retrieval import GraphRAGRetrieval
-    from rag_modules.intelligent_query_touter import IntelligentQueryRouter
+    from rag_modules.intelligent_query_router import IntelligentQueryRouter
     
     return {
         'config': DEFAULT_CONFIG,
@@ -184,7 +189,7 @@ class GraphRAGApp:
                     self.console.print(f"[{self.theme.secondary_text}]加载图数据以支持图检索...[/]")
                     self.data_module.load_graph_data()
                     self.data_module.build_documents()
-                    chunks = self.data_module.chunk_douments(
+                    chunks = self.data_module.chunk_documents(
                         chunk_size=self.config.chunk_size,
                         chunk_overlap=self.config.chunk_overlap
                     )
@@ -203,7 +208,7 @@ class GraphRAGApp:
             self.data_module.build_documents()
             
             self.console.print(f"[{self.theme.secondary_text}]进行文档分块...[/]")
-            chunks = self.data_module.chunk_douments(
+            chunks = self.data_module.chunk_documents(
                 chunk_size=self.config.chunk_size,
                 chunk_overlap=self.config.chunk_overlap
             )
@@ -362,16 +367,18 @@ def start(
     
     # 显示启动信息
     console.clear()
-    
+
     # 初始化系统
-    with SpinnerContext("初始化系统", console):
-        if not rag_app.initialize():
-            raise typer.Exit(1)
-    
+    console.print(f"[{theme.info}]初始化系统中...[/]")
+    if not rag_app.initialize():
+        raise typer.Exit(1)
+    console.print(f"[{theme.success}]✓ 系统初始化完成[/]")
+
     # 构建知识库
-    with SpinnerContext("加载知识库", console):
-        if not rag_app.build_knowledge_base():
-            raise typer.Exit(1)
+    console.print(f"[{theme.info}]加载知识库中...[/]")
+    if not rag_app.build_knowledge_base():
+        raise typer.Exit(1)
+    console.print(f"[{theme.success}]✓ 知识库加载完成[/]")
     
     # 获取状态
     status = rag_app.get_status()
@@ -385,14 +392,14 @@ def start(
         cwd=os.getcwd(),
     )
     
-    # 创建 REPL
+    # 创建 REPL - 使用基础 REPL
     def on_query(question: str) -> str:
         return rag_app.query(question, stream=True)
-    
+
     def on_command(cmd: str, args: list) -> None:
         if cmd == "stats":
             rag_app._show_knowledge_base_stats()
-    
+
     repl = REPL(
         console=console,
         on_query=on_query,
@@ -421,16 +428,18 @@ def query(
     直接查询问题并获取回答，不进入交互模式。
     """
     setup_logging()
-    
+
     rag_app = GraphRAGApp(console)
-    
-    with SpinnerContext("初始化系统", console):
-        if not rag_app.initialize():
-            raise typer.Exit(1)
-    
-    with SpinnerContext("加载知识库", console):
-        if not rag_app.build_knowledge_base():
-            raise typer.Exit(1)
+
+    console.print(f"[{theme.info}]初始化系统中...[/]")
+    if not rag_app.initialize():
+        raise typer.Exit(1)
+    console.print(f"[{theme.success}]✓ 系统初始化完成[/]")
+
+    console.print(f"[{theme.info}]加载知识库中...[/]")
+    if not rag_app.build_knowledge_base():
+        raise typer.Exit(1)
+    console.print(f"[{theme.success}]✓ 知识库加载完成[/]")
     
     result = rag_app.query(question, stream=stream)
     
@@ -546,6 +555,90 @@ def doctor():
     else:
         console.print(f"[{theme.warning}]部分检查未通过，请检查相关服务配置。[/]")
         raise typer.Exit(1)
+
+
+# Cache 子命令组
+cache_app = typer.Typer(help="缓存管理命令")
+app.add_typer(cache_app, name="cache")
+
+
+@cache_app.command("stats")
+def cache_stats():
+    """显示缓存统计信息"""
+    from cache import get_cache_manager
+
+    cache_manager = get_cache_manager()
+    stats = cache_manager.get_stats()
+
+    console.print(f"\n[{theme.primary}]📊 缓存统计[/]\n")
+
+    # 向量检索缓存
+    vector_stats = stats.get('vector_cache')
+    if vector_stats:
+        console.print(f"[{theme.info}]向量检索缓存:[/]")
+        console.print(f"  条目数: {vector_stats.get('size', 0)}")
+        console.print(f"  命中: {vector_stats.get('hits', 0)}")
+        console.print(f"  未命中: {vector_stats.get('misses', 0)}")
+        console.print(f"  命中率: {vector_stats.get('hit_rate', 0):.2%}")
+        console.print()
+
+    # 图查询缓存
+    graph_stats = stats.get('graph_cache')
+    if graph_stats:
+        console.print(f"[{theme.info}]图查询缓存:[/]")
+        console.print(f"  条目数: {graph_stats.get('size', 0)}")
+        console.print(f"  命中: {graph_stats.get('hits', 0)}")
+        console.print(f"  未命中: {graph_stats.get('misses', 0)}")
+        console.print(f"  命中率: {graph_stats.get('hit_rate', 0):.2%}")
+        console.print()
+
+    # LLM缓存
+    llm_stats = stats.get('llm_cache')
+    if llm_stats:
+        console.print(f"[{theme.info}]LLM结果缓存:[/]")
+        console.print(f"  条目数: {llm_stats.get('size', 0)}")
+        console.print(f"  命中: {llm_stats.get('hits', 0)}")
+        console.print(f"  未命中: {llm_stats.get('misses', 0)}")
+        console.print(f"  命中率: {llm_stats.get('hit_rate', 0):.2%}")
+        console.print()
+
+    # 总体统计
+    overall = stats.get('overall', {})
+    console.print(f"[{theme.success}]总体统计:[/]")
+    console.print(f"  总请求: {overall.get('total_requests', 0)}")
+    console.print(f"  总命中: {overall.get('total_hits', 0)}")
+    console.print(f"  总体命中率: {overall.get('overall_hit_rate', 0):.2%}")
+
+
+@cache_app.command("clear")
+def cache_clear(
+    vector: bool = typer.Option(False, "--vector", help="清空向量检索缓存"),
+    graph: bool = typer.Option(False, "--graph", help="清空图查询缓存"),
+    llm: bool = typer.Option(False, "--llm", help="清空LLM结果缓存"),
+    all: bool = typer.Option(False, "--all", help="清空所有缓存"),
+):
+    """清空缓存"""
+    from cache import get_cache_manager
+
+    cache_manager = get_cache_manager()
+
+    if all:
+        cache_manager.clear_all()
+        console.print(f"[{theme.success}]✅ 所有缓存已清空[/]")
+    else:
+        if vector:
+            cache_manager.clear_vector_cache()
+            console.print(f"[{theme.success}]✅ 向量检索缓存已清空[/]")
+        if graph:
+            cache_manager.clear_graph_cache()
+            console.print(f"[{theme.success}]✅ 图查询缓存已清空[/]")
+        if llm:
+            cache_manager.clear_llm_cache()
+            console.print(f"[{theme.success}]✅ LLM结果缓存已清空[/]")
+
+        if not any([vector, graph, llm]):
+            console.print(f"[{theme.warning}]⚠️ 请指定要清空的缓存类型（--vector, --graph, --llm, --all）[/]")
+            raise typer.Exit(1)
 
 
 if __name__ == "__main__":

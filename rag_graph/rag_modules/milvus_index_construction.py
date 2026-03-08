@@ -2,6 +2,7 @@
 Milvus索引构建模块
 """
 
+import os
 import logging
 import time
 from typing import List, Dict, Any, Optional
@@ -12,6 +13,11 @@ from langchain_core.documents import Document
 import numpy as np
 
 logger = logging.getLogger(__name__)
+
+# 设置 HuggingFace 镜像（如果环境变量未设置）
+if not os.getenv("HF_ENDPOINT"):
+    os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
+    logger.info("已设置 HuggingFace 镜像: https://hf-mirror.com")
 
 class MilvusIndexConstructionModule:
     """Milvus索引构建模块 - 负责向量化和Milvus索引构建"""
