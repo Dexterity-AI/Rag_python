@@ -11,12 +11,16 @@ from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
 from langchain_core.documents import Document
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
+import os
 from openai import OpenAI
 from dotenv import load_dotenv
 from cache import get_cache_manager
 
-# 加载环境变量
-load_dotenv()
+# 加载环境变量（从项目根目录的 config 文件夹）
+_current_file = os.path.dirname(os.path.abspath(__file__))
+_project_root = os.path.dirname(_current_file)
+env_path = os.path.join(_project_root, '..', 'config', '.env')
+load_dotenv(env_path)
 
 logger = logging.getLogger(__name__)
 
@@ -338,53 +342,6 @@ class GenerationIntegrationModule:
         except Exception as e:
             logger.error(f"查询重写失败: {e}")
             return query
-
-    def query_router(self, query: str) -> str:
-        """
-        查询路由 - 根据查询类型选择不同的处理方式
-
-        Args:
-            query: 用户查询
-
-        Returns:
-            路由类型 ('list', 'detail', 'general')
-        """
-        prompt = ChatPromptTemplate.from_template("""
-        根据用户的问题，将其分类为以下三种类型之一：
-
-        1. 'list' - 用户想要获取景点列表或推荐，只需要景点名称
-            例如：推荐几个景点、北京有什么好玩的、给我3个必去的地方
-
-        2. 'detail' - 用户想要具体的旅游信息或详细指南
-            例如：故宫怎么去、门票多少钱、开放时间、旅游攻略
-
-        3. 'general' - 其他一般性问题
-            例如：什么是文化旅游、旅游注意事项、最佳旅游季节
-
-        请只返回分类结果：list、detail 或 general
-
-        用户问题：{query}
-
-        分类结果：
-        """)
-
-        chain = (
-            {"query": RunnablePassthrough()}
-            | prompt
-            | self.client
-            | StrOutputParser()
-        )
-
-        try:
-            result = chain.invoke(query).strip().lower()
-            # 确保返回有效的路由类型
-            if result in ['list', 'detail', 'general']:
-                return result
-            else:
-                return 'general'  # 默认类型
-        except Exception as e:
-            logger.error(f"查询路由失败: {e}")
-            return 'general'  # 默认类型
 
     def generate_list_answer(self, query: str, context_docs: List[Document]) -> str:
         """

@@ -6,6 +6,7 @@
 
 import json
 import logging
+import re
 from typing import List, Dict, Tuple, Any
 from dataclasses import dataclass
 
@@ -188,127 +189,122 @@ class HybridRetrievalModule:
     def extract_query_keywords(self, query: str) -> Tuple[List[str], List[str]]:
         """
         提取查询关键词：实体级 + 主题级
+        使用轻量级规则方法，避免LLM调用
         """
-        prompt = f"""
-        作为旅游知识助手，请分析以下查询并提取关键词，分为两个层次：
-
-        查询：{query}
-
-        提取规则：
-        1. 实体级关键词：具体的地点、景点、城市、酒店、餐厅、特产、建筑等有形实体
-           - 例如：故宫、长城、北京、布达拉宫、香格里拉、天安门、东方明珠
-           - 对于抽象查询，推测相关的具体地点/景点
-
-        2. 主题级关键词：抽象概念、旅游主题、活动类型、旅游风格、季节等
-           - 例如：历史古迹、自然风光、美食之旅、亲子游、探险、浪漫、文化体验
-           - 排除动作词：推荐、介绍、怎么去、路线规划等
-
-        示例：
-        查询："推荐几个历史古迹"
-        {{
-            "entity_keywords": ["故宫", "天坛", "明十三陵", "颐和园", "长城"],
-            "topic_keywords": ["历史古迹", "皇城", "古建筑", "文化遗产", "明清"]
-        }}
-
-        查询："北京有什么好玩的地方"
-        {{
-            "entity_keywords": ["故宫", "长城", "天安门", "颐和园", "北海公园"],
-            "topic_keywords": ["旅游景点", "北京", "必去景点", "历史文化", "皇家园林"]
-        }}
-
-        查询："西藏旅游最佳时间"
-        {{
-            "entity_keywords": ["布达拉宫", "纳木错", "珠峰", "拉萨", "林芝"],
-            "topic_keywords": ["西藏", "最佳旅游时间", "高海拔", "藏文化", "自然风光"]
-        }}
-
-        请严格按照JSON格式返回，不要包含多余的文字：
-        {{
-            "entity_keywords": ["实体1", "实体2", ...],
-            "topic_keywords": ["主题1", "主题2", ...]
-        }}
-        """
-        
-        try:
-            response = self.llm_client.chat.completions.create(
-                model=self.config.llm_model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.1,
-                max_tokens=500
-            )
-            
-            # 获取响应内容
-            content = response.choices[0].message.content
-            if not content:
-                raise ValueError("LLM 返回空响应")
-            
-            content = content.strip()
-
-            # 清理 markdown 代码块
-            if content.startswith("```"):
-                # 移除开头的 ```json 或 ```
-                lines = content.split("\n")
-                if lines[0].startswith("```"):
-                    lines = lines[1:]
-                # 移除结尾的 ```
-                if lines and lines[-1].strip() == "```":
-                    lines = lines[:-1]
-                content = "\n".join(lines).strip()
-
-            # 提取JSON内容（如果响应包含其他文本）
-            json_start = content.find('{')
-            json_end = content.rfind('}')
-            if json_start == -1 or json_end == -1 or json_end <= json_start:
-                raise ValueError(f"响应中未找到有效的JSON: {content[:200]}")
-            content = content[json_start:json_end + 1]
-
-            result = json.loads(content)
-            entity_keywords = result.get("entity_keywords", [])
-            topic_keywords = result.get("topic_keywords", [])
-            
-            logger.info(f"关键词提取完成 - 实体级: {entity_keywords}, 主题级: {topic_keywords}")
-            return entity_keywords, topic_keywords
-            
-        except Exception as e:
-            logger.warning(f"关键词提取失败: {e}，使用智能分词降级方案")
-            # 更智能的降级方案：提取查询中的关键名词
-            return self._extract_keywords_rule_based(query)
+        return self._extract_keywords_rule_based(query)
 
     def _extract_keywords_rule_based(self, query: str) -> Tuple[List[str], List[str]]:
         """
-        基于规则的关键词提取（不依赖LLM）
+        基于规则的智能关键词提取（轻量级，无LLM调用）
+        使用词典匹配 + 启发式规则
         """
-        # 常见的停用词
-        stop_words = {'的', '了', '是', '我', '有', '和', '就', '不', '人', '都', '一', '一个', '上', '也', '很', '到', '说', '要', '去', '你', '会', '着', '没有', '看', '好', '自己', '这', '那', '什么', '吗', '吧', '呢', '啊', '哦', '嗯'}
+        # 停用词表
+        stop_words = {
+            '的', '了', '是', '我', '有', '和', '就', '不', '人', '都', '一', '一个', '上', '也', '很',
+            '到', '说', '要', '去', '你', '会', '着', '没有', '看', '好', '自己', '这', '那', '什么',
+            '吗', '吧', '呢', '啊', '哦', '嗯', '在', '与', '及', '等', '之', '为', '以', '被', '把'
+        }
 
-        # 实体关键词（名词）- 从查询中提取
+        # 旅游领域实体词典
+        tourism_entities = {
+            # 城市
+            '北京', '上海', '广州', '深圳', '杭州', '南京', '西安', '成都', '重庆', '武汉',
+            '天津', '苏州', '无锡', '厦门', '青岛', '大连', '宁波', '长沙', '郑州', '济南',
+            '西藏', '拉萨', '林芝', '日喀则', '青海', '西宁', '新疆', '乌鲁木齐', '伊犁',
+            '云南', '昆明', '大理', '丽江', '香格里拉', '西双版纳',
+            '四川', '九寨沟', '黄龙', '峨眉山', '乐山', '稻城亚丁',
+            '陕西', '华山', '兵马俑', '华清池',
+            '广西', '桂林', '阳朔', '北海',
+            '海南', '三亚', '海口', '蜈支洲岛',
+            # 景点
+            '故宫', '长城', '天安门', '颐和园', '天坛', '北海公园', '圆明园', '景山', '什刹海',
+            '八达岭', '慕田峪', '居庸关', '司马台', '箭扣',
+            '黄山', '泰山', '华山', '衡山', '恒山', '嵩山', '庐山', '雁荡山', '武夷山',
+            '西湖', '千岛湖', '太湖', '滇池', '洱海', '泸沽湖', '纳木错', '青海湖',
+            '布达拉宫', '大昭寺', '罗布林卡', '扎什伦布寺',
+            '九寨沟', '黄龙', '张家界', '天门山', '凤凰古城',
+            '漓江', '象鼻山', '两江四湖', '遇龙河',
+            '外滩', '东方明珠', '豫园', '城隍庙', '南京路', '田子坊',
+            '迪士尼', '欢乐谷', '方特', '长隆', '海洋公园', '动物园', '植物园',
+            '博物馆', '美术馆', '纪念馆', '故居', '陵墓', '寺庙', '教堂',
+            # 美食相关
+            '火锅', '烧烤', '烤鸭', '拉面', '小吃', '美食', '餐厅', '饭店', '酒楼',
+            # 住宿相关
+            '酒店', '宾馆', '民宿', '客栈', '度假村', '青年旅舍',
+            # 交通相关
+            '机场', '火车站', '高铁站', '地铁站', '公交站', '港口', '码头',
+            # 其他地点
+            '古镇', '古村', '老街', '步行街', '广场', '公园', '湿地', '海滩', '海岛'
+        }
+
+        # 主题/类别词典
+        topic_keywords_set = {
+            '景点', '景区', '旅游', '旅行', '游览', '观光', '度假', '休闲',
+            '美食', '餐饮', '小吃', '特产', '购物',
+            '酒店', '住宿', '宾馆', '民宿', '客栈',
+            '交通', '出行', '路线', '导航', '距离', '时间',
+            '门票', '票价', '费用', '价格', '花费', '预算', '多少钱',
+            '攻略', '指南', '建议', '推荐', '介绍', '分享', '体验',
+            '历史', '文化', '古迹', '遗产', '建筑', '宗教', '民俗',
+            '自然', '风景', '风光', '山水', '海景', '森林', '草原', '沙漠', '雪山',
+            '亲子', '情侣', '家庭', '团队', '自助', '自驾', '徒步', '骑行', '探险',
+            '春季', '夏季', '秋季', '冬季', '春天', '夏天', '秋天', '冬天',
+            '最佳', '适合', '好玩', '值得', '著名', '热门', '必去', '打卡'
+        }
+
         entity_keywords = []
         topic_keywords = []
 
-        # 简单的分词（按空格和标点分割）
-        import re
-        words = re.findall(r'[\u4e00-\u9fff]+|[a-zA-Z]+', query)
+        # 1. 直接匹配实体词典
+        for entity in tourism_entities:
+            if entity in query:
+                entity_keywords.append(entity)
 
-        # 旅游相关的主题词
-        topic_patterns = ['景点', '旅游', '旅行', '美食', '酒店', '住宿', '交通', '攻略', '路线', '季节', '门票', '推荐', '特色', '文化', '历史', '自然', '风景']
+        # 2. 直接匹配主题词典
+        for topic in topic_keywords_set:
+            if topic in query:
+                topic_keywords.append(topic)
+
+        # 3. 分词提取额外关键词
+        words = re.findall(r'[\u4e00-\u9fff]+', query)
 
         for word in words:
-            if len(word) >= 2 and word not in stop_words:
-                if any(pattern in word for pattern in topic_patterns):
-                    topic_keywords.append(word)
-                else:
-                    entity_keywords.append(word)
+            if len(word) < 2 or word in stop_words:
+                continue
 
-        # 确保至少有一些关键词
-        if not entity_keywords:
-            # 如果实体为空，把整个查询作为实体关键词
-            entity_keywords = [w for w in words if len(w) >= 2][:3]
+            # 跳过已匹配的
+            if word in entity_keywords or word in topic_keywords:
+                continue
+
+            # 根据词性/特征分类
+            # 地点后缀 -> 实体
+            location_suffixes = ['市', '省', '县', '镇', '村', '山', '河', '湖', '海', '岛', '塔', '寺', '庙', '宫', '殿', '园', '馆', '街', '路']
+            if any(word.endswith(suffix) for suffix in location_suffixes):
+                entity_keywords.append(word)
+                continue
+
+            # 活动/抽象后缀 -> 主题
+            abstract_suffixes = ['游', '行', '观', '览', '玩', '学', '感', '赏']
+            if any(word.endswith(suffix) for suffix in abstract_suffixes):
+                topic_keywords.append(word)
+                continue
+
+        # 4. 去重并限制数量
+        entity_keywords = list(dict.fromkeys(entity_keywords))[:5]  # 保持顺序去重
+        topic_keywords = list(dict.fromkeys(topic_keywords))[:5]
+
+        # 5. 保底处理：确保至少有一些关键词
+        if not entity_keywords and words:
+            # 从查询中提取最长的词作为实体
+            entity_keywords = sorted([w for w in words if len(w) >= 2 and w not in stop_words],
+                                    key=len, reverse=True)[:3]
+
         if not topic_keywords:
-            # 如果主题为空，添加一些通用主题
+            # 添加通用主题
             topic_keywords = ['旅游']
 
         logger.info(f"规则提取关键词 - 实体: {entity_keywords}, 主题: {topic_keywords}")
-        return entity_keywords[:5], topic_keywords[:5]
+        return entity_keywords, topic_keywords
 
     def entity_level_retrieval(self, entity_keywords: List[str], top_k: int = 5) -> List[RetrievalResult]:
         """

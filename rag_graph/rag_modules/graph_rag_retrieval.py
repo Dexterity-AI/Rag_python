@@ -3,7 +3,6 @@
 基于图结构的知识推理和检索，而非简单的关键词匹配
 """
 
-import json
 import logging
 from collections import defaultdict, deque
 from typing import List, Dict, Tuple, Any, Optional, Set
@@ -13,6 +12,7 @@ from enum import Enum
 from langchain_core.documents import Document
 from neo4j import GraphDatabase
 from cache import get_cache_manager
+from utils.llm_parser import parse_llm_json_response
 
 logger = logging.getLogger(__name__)
 
@@ -190,28 +190,10 @@ class GraphRAGRetrieval:
             )
 
             content = response.choices[0].message.content
-            if not content:
-                raise ValueError("LLM 返回空响应")
+            result = parse_llm_json_response(content)
 
-            content = content.strip()
-
-            # 清理 markdown 代码块
-            if content.startswith("```"):
-                lines = content.split("\n")
-                if lines[0].startswith("```"):
-                    lines = lines[1:]
-                if lines and lines[-1].strip() == "```":
-                    lines = lines[:-1]
-                content = "\n".join(lines).strip()
-
-            # 提取JSON内容
-            json_start = content.find('{')
-            json_end = content.rfind('}')
-            if json_start == -1 or json_end == -1 or json_end <= json_start:
-                raise ValueError(f"响应中未找到有效的JSON: {content[:200]}")
-            content = content[json_start:json_end + 1]
-
-            result = json.loads(content)
+            if result is None:
+                raise ValueError(f"无法解析LLM响应: {content[:200] if content else '空响应'}")
 
             return GraphQuery(
                 query_type=QueryType(result.get("query_type", "subgraph")),

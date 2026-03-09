@@ -27,8 +27,24 @@ from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich import print as rprint
 
-# 设置路径
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# 设置路径 - 确保当前项目优先
+_current_dir = os.path.dirname(os.path.abspath(__file__))
+_project_root = os.path.dirname(_current_dir)
+sys.path.insert(0, _current_dir)
+sys.path.insert(0, _project_root)
+
+# 清理可能冲突的旧路径
+_paths_to_remove = [
+    '/Users/zeng/Desktop/all_in_rag/all-in-rag/code/C9',
+    '/Users/zeng/Desktop/all_in_rag',
+]
+for _bad_path in _paths_to_remove:
+    if _bad_path in sys.path:
+        sys.path.remove(_bad_path)
+    # 也检查带斜杠的变体
+    _bad_path_slash = _bad_path.rstrip('/')
+    if _bad_path_slash in sys.path:
+        sys.path.remove(_bad_path_slash)
 
 # 导入 UI 组件
 from ui import get_theme, Logo, REPL, StreamingREPL
@@ -66,7 +82,7 @@ def setup_logging(verbose: bool = False, debug: bool = False) -> None:
 
 def get_rag_system():
     """懒加载 RAG 系统"""
-    from config import DEFAULT_CONFIG
+    from config.config import DEFAULT_CONFIG
     from rag_modules import (
         GraphDataPreparationModule,
         MilvusIndexConstructionModule,
@@ -260,21 +276,9 @@ class GraphRAGApp:
             # 智能路由检索
             relevant_docs, analysis = self.query_router.route_query(question, self.config.top_k)
             
-            # 显示路由信息
-            strategy_icons = {
-                "hybrid_traditional": "🔍",
-                "graph_rag": "🕸️",
-                "combined": "🔄"
-            }
-            strategy_icon = strategy_icons.get(analysis.recommended_strategy.value, "❓")
-            
-            self.console.print(f"[{self.theme.secondary_text}]{strategy_icon} 使用策略: {analysis.recommended_strategy.value}[/]")
-            self.console.print(f"[{self.theme.secondary_text}]📊 复杂度: {analysis.query_complexity:.2f}, 关系密集度: {analysis.relationship_intensity:.2f}[/]")
-            
+            # 路由信息已隐藏，只显示答案
             if not relevant_docs:
                 return "抱歉，没有找到相关的旅游信息。请尝试其他问题。"
-            
-            self.console.print(f"[{self.theme.secondary_text}]📋 找到 {len(relevant_docs)} 个相关文档[/]")
             
             # 生成回答
             if stream:
@@ -457,7 +461,7 @@ app.add_typer(config_app, name="config")
 @config_app.command("list")
 def config_list():
     """列出所有配置"""
-    from config import DEFAULT_CONFIG
+    from config.config import DEFAULT_CONFIG
     
     config_dict = DEFAULT_CONFIG.to_dict()
     
@@ -476,7 +480,7 @@ def config_list():
 @config_app.command("get")
 def config_get(key: str = typer.Argument(..., help="配置项名称")):
     """获取指定配置项"""
-    from config import DEFAULT_CONFIG
+    from config.config import DEFAULT_CONFIG
     
     config_dict = DEFAULT_CONFIG.to_dict()
     
@@ -503,7 +507,7 @@ def doctor():
     
     # 检查 Neo4j
     try:
-        from config import DEFAULT_CONFIG
+        from config.config import DEFAULT_CONFIG
         from neo4j import GraphDatabase
         
         driver = GraphDatabase.driver(
@@ -519,7 +523,7 @@ def doctor():
     # 检查 Milvus
     try:
         from pymilvus import connections
-        from config import DEFAULT_CONFIG
+        from config.config import DEFAULT_CONFIG
         
         connections.connect(
             alias="health_check",
@@ -533,7 +537,7 @@ def doctor():
     
     # 检查 LLM API
     try:
-        from config import DEFAULT_CONFIG
+        from config.config import DEFAULT_CONFIG
         if DEFAULT_CONFIG.llm_api_key and DEFAULT_CONFIG.llm_base_url:
             checks.append(("LLM API", True, f"已配置 ({DEFAULT_CONFIG.llm_model})"))
         else:
