@@ -98,4 +98,5 @@ htmlcov/
 *.pem
 *.key
 secrets/
+config/.env
 
