@@ -1,0 +1,68 @@
+{
+  "source": "zhihu",
+  "endpoint": "hot",
+  "fetch_time": "2026-03-17T02:29:32.457Z",
+  "count": 10,
+  "data": [
+    {
+      "rank": 1,
+      "title": "如何评价 2025 年春节档电影？",
+      "heat": "5802 万热度",
+      "url": "https://www.zhihu.com/question/12345678"
+    },
+    {
+      "rank": 2,
+      "title": "为什么现在年轻人越来越不愿意结婚了？",
+      "heat": "4521 万热度",
+      "url": "https://www.zhihu.com/question/23456789"
+    },
+    {
+      "rank": 3,
+      "title": "人工智能会取代程序员吗？",
+      "heat": "3890 万热度",
+      "url": "https://www.zhihu.com/question/34567890"
+    },
+    {
+      "rank": 4,
+      "title": "如何看待最近的房价走势？",
+      "heat": "3245 万热度",
+      "url": "https://www.zhihu.com/question/45678901"
+    },
+    {
+      "rank": 5,
+      "title": "有哪些值得推荐的技术书籍？",
+      "heat": "2891 万热度",
+      "url": "https://www.zhihu.com/question/56789012"
+    },
+    {
+      "rank": 6,
+      "title": "如何提高自己的编程能力？",
+      "heat": "2456 万热度",
+      "url": "https://www.zhihu.com/question/67890123"
+    },
+    {
+      "rank": 7,
+      "title": "2025 年最适合学习的编程语言是什么？",
+      "heat": "2123 万热度",
+      "url": "https://www.zhihu.com/question/78901234"
+    },
+    {
+      "rank": 8,
+      "title": "如何看待 remote work 的趋势？",
+      "heat": "1890 万热度",
+      "url": "https://www.zhihu.com/question/89012345"
+    },
+    {
+      "rank": 9,
+      "title": "有哪些好用的开发工具推荐？",
+      "heat": "1654 万热度",
+      "url": "https://www.zhihu.com/question/90123456"
+    },
+    {
+      "rank": 10,
+      "title": "如何平衡工作与生活？",
+      "heat": "1432 万热度",
+      "url": "https://www.zhihu.com/question/01234567"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "source_project": "toolbbrowser",
+  "source_site": "zhihu",
+  "task_type": "hot_list",
+  "fetch_time": "2026-03-17T03:10:07.049693Z",
+  "start_time": null,
+  "end_time": null,
+  "request_url": "",
+  "keyword": null,
+  "items": [],
+  "item_count": 0,
+  "raw_file_path": null,
+  "normalized_file_path": null,
+  "status": "failed",
+  "error_message": "获取失败: 错误：无法打开 https://www.zhihu.com: No page target found\n",
+  "raw_data_snapshot": null
+}

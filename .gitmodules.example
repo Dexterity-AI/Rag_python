@@ -1,0 +1,6 @@
+[submodule "ToolBbrowser"]
+	path = ToolBbrowser
+	url = https://github.com/epiral/bb-browser.git
+[submodule "Scrapling-main"]
+	path = Scrapling-main
+	url = https://github.com/D4Vinci/Scrapling.git

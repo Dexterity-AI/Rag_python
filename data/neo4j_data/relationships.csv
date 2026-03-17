@@ -1,0 +1,13 @@
+from_id,to_id,relationship_type,properties
+summary_node,beijing,IS_POPULAR_DESTINATION,华北地区
+summary_node,nanjing,IS_POPULAR_DESTINATION,华东地区
+summary_node,shanghai,IS_POPULAR_DESTINATION,华东地区
+summary_node,tibet,IS_POPULAR_DESTINATION,西南地区
+tibet,lhasa,HAS_SUBREGION,首府
+tibet,nyingchi,HAS_SUBREGION,东南部
+tibet,shannan,HAS_SUBREGION,南部
+tibet,shigatse,HAS_SUBREGION,西南部
+tibet,ngari,HAS_SUBREGION,西部
+tibet,nagqu,HAS_SUBREGION,北部
+tibet,chamdo,HAS_SUBREGION,东北部
+

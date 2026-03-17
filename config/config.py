@@ -53,6 +53,25 @@ class GraphRAGConfig:
     enable_llm_routing: bool = os.getenv("ENABLE_LLM_ROUTING", "false").lower() == "true"  # 是否启用LLM路由（默认关闭）
     router_cache_size: int = int(os.getenv("ROUTER_CACHE_SIZE", "1000"))  # 路由决策缓存大小
 
+    # === 数据采集配置 ===
+    # ToolBbrowser 配置
+    toolbbrowser_enabled: bool = os.getenv("TOOLBBROWSER_ENABLED", "true").lower() == "true"
+    toolbbrowser_path: str = os.getenv("TOOLBBROWSER_PATH", os.path.join(PROJECT_ROOT, "ToolBbrowser"))
+    toolbbrowser_node_path: str = os.getenv("TOOLBBROWSER_NODE_PATH", "node")
+    toolbbrowser_timeout: int = int(os.getenv("TOOLBBROWSER_TIMEOUT", "60"))
+
+    # Scrapling 配置
+    scrapling_enabled: bool = os.getenv("SCRAPLING_ENABLED", "true").lower() == "true"
+    scrapling_path: str = os.getenv("SCRAPLING_PATH", os.path.join(PROJECT_ROOT, "Scrapling-main"))
+    scrapling_default_fetcher: str = os.getenv("SCRAPLING_DEFAULT_FETCHER", "fetcher")
+    scrapling_timeout: int = int(os.getenv("SCRAPLING_TIMEOUT", "30"))
+    scrapling_retry_count: int = int(os.getenv("SCRAPLING_RETRY_COUNT", "3"))
+
+    # 数据目录配置
+    data_root: str = os.getenv("DATA_ROOT", os.path.join(PROJECT_ROOT, "data"))
+    collector_save_raw: bool = os.getenv("COLLECTOR_SAVE_RAW", "true").lower() == "true"
+    collector_save_normalized: bool = os.getenv("COLLECTOR_SAVE_NORMALIZED", "true").lower() == "true"
+
     def __post_init__(self):
         """初始化后的处理"""
         # LightRAG使用Round-robin策略，无需权重验证
@@ -84,7 +103,14 @@ class GraphRAGConfig:
             'chunk_overlap': self.chunk_overlap,
             'max_graph_depth': self.max_graph_depth,
             'enable_llm_routing': self.enable_llm_routing,
-            'router_cache_size': self.router_cache_size
+            'router_cache_size': self.router_cache_size,
+
+            # 数据采集配置
+            'toolbbrowser_enabled': self.toolbbrowser_enabled,
+            'scrapling_enabled': self.scrapling_enabled,
+            'data_root': self.data_root,
+            'collector_save_raw': self.collector_save_raw,
+            'collector_save_normalized': self.collector_save_normalized,
         }
 
 # 默认配置实例

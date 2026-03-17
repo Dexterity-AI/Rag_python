@@ -1,0 +1,120 @@
+{
+  "source_project": "toolbbrowser",
+  "source_site": "zhihu",
+  "task_type": "hot_list",
+  "fetch_time": "2026-03-17T03:11:40.966997Z",
+  "start_time": null,
+  "end_time": "2026-03-17T03:11:40.967015Z",
+  "request_url": "",
+  "keyword": null,
+  "items": [
+    {
+      "title": "如何评价最新的技术趋势？",
+      "url": "https://zhihu.com/question/1",
+      "content": "",
+      "summary": "",
+      "author": "",
+      "publish_time": null,
+      "source": "zhihu",
+      "tags": [],
+      "heat": "5000万热度",
+      "rank": 1,
+      "extra": {}
+    },
+    {
+      "title": "人工智能发展现状如何？",
+      "url": "https://zhihu.com/question/2",
+      "content": "",
+      "summary": "",
+      "author": "",
+      "publish_time": null,
+      "source": "zhihu",
+      "tags": [],
+      "heat": "4000万热度",
+      "rank": 2,
+      "extra": {}
+    },
+    {
+      "title": "有哪些推荐的旅游目的地？",
+      "url": "https://zhihu.com/question/3",
+      "content": "",
+      "summary": "",
+      "author": "",
+      "publish_time": null,
+      "source": "zhihu",
+      "tags": [],
+      "heat": "3000万热度",
+      "rank": 3,
+      "extra": {}
+    },
+    {
+      "title": "如何提高工作效率？",
+      "url": "https://zhihu.com/question/4",
+      "content": "",
+      "summary": "",
+      "author": "",
+      "publish_time": null,
+      "source": "zhihu",
+      "tags": [],
+      "heat": "2000万热度",
+      "rank": 4,
+      "extra": {}
+    },
+    {
+      "title": "今年的流行色是什么？",
+      "url": "https://zhihu.com/question/5",
+      "content": "",
+      "summary": "",
+      "author": "",
+      "publish_time": null,
+      "source": "zhihu",
+      "tags": [],
+      "heat": "1000万热度",
+      "rank": 5,
+      "extra": {}
+    }
+  ],
+  "item_count": 5,
+  "raw_file_path": "/Users/zeng/Desktop/Rag/data/toolbbrowser/fetch/zhihu_hot_list_raw_2026-03-17T03-11-40-967Z.json",
+  "normalized_file_path": null,
+  "status": "success",
+  "error_message": "MOCK_MODE: 返回模拟数据",
+  "raw_data_snapshot": {
+    "source": "zhihu",
+    "endpoint": "hot",
+    "fetch_time": "2026-03-17T03:11:40.966939Z",
+    "count": 5,
+    "data": [
+      {
+        "rank": 1,
+        "title": "如何评价最新的技术趋势？",
+        "heat": "5000万热度",
+        "url": "https://zhihu.com/question/1"
+      },
+      {
+        "rank": 2,
+        "title": "人工智能发展现状如何？",
+        "heat": "4000万热度",
+        "url": "https://zhihu.com/question/2"
+      },
+      {
+        "rank": 3,
+        "title": "有哪些推荐的旅游目的地？",
+        "heat": "3000万热度",
+        "url": "https://zhihu.com/question/3"
+      },
+      {
+        "rank": 4,
+        "title": "如何提高工作效率？",
+        "heat": "2000万热度",
+        "url": "https://zhihu.com/question/4"
+      },
+      {
+        "rank": 5,
+        "title": "今年的流行色是什么？",
+        "heat": "1000万热度",
+        "url": "https://zhihu.com/question/5"
+      }
+    ]
+  }
+}

@@ -1,0 +1,17 @@
+id,name,city_id,time,description
+nj_qinhuaideng,秦淮灯会,nanjing,春节至元宵,夫子庙灯火满市井，全国之冠
+nj_meihuajie,梅花节,nanjing,2-3月,梅花山赏梅，南京市花
+nj_yinghuajie,樱花节,nanjing,3-4月,鸡鸣寺樱花大道
+nj_qixiahongye,栖霞红叶,nanjing,11月,栖霞山赏红叶
+sh_guojiyishujie,上海国际艺术节,shanghai,10-11月,国际文化艺术盛会
+sh_luyinghua,旅游节,shanghai,9月,上海旅游狂欢节
+sh_shanghaidianyingjie,上海国际电影节,shanghai,6月,亚洲顶级电影节
+tibet_xuedun,雪顿节,tibet,藏历7月,西藏最盛大节日，晒大佛藏戏
+tibet_zanglixinnian,藏历新年,tibet,藏历1月,西藏最隆重节日
+tibet_sagadawa,萨嘎达瓦节,tibet,藏历4月15日,纪念释迦牟尼
+tibet_muyu,沐浴节,tibet,藏历7月,七八百年历史传统节日
+tibet_suyouhuadeng,酥油花灯会,tibet,藏历1月15日,大昭寺酥油花灯
+tibet_wangguo,望果节,tibet,藏历6月4日,祈求丰收节日
+tibet_xiannv,仙女节,tibet,藏历10月15日,女人的节日
+tibet_randeng,燃灯节,tibet,藏历10月25日,纪念宗喀巴成道日
+

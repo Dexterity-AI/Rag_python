@@ -1,0 +1,7 @@
+id,name,type,description,best_time,consumption_level
+summary_node,热门旅游城市,SummaryNode,中国热门旅游目的地汇总,全年,
+beijing,北京,City,中国首都，拥有三千多年历史的古都,3-5月和9-11月,较高
+nanjing,南京,City,十朝都会，六朝古都，金陵帝王州,3-5月和9-11月,中等
+shanghai,上海,City,国际化大都市，东方明珠，十里洋场,3-5月和9-11月,较高
+tibet,西藏,Region,世界屋脊，雪域高原，神圣净土,7-9月,较高
+

@@ -100,3 +100,18 @@ htmlcov/
 secrets/
 config/.env
 
+# ========================================
+# 第三方采集工具构建产物
+# 这些工具通过 git submodule 或 setup-tools.sh 安装
+# ========================================
+# ToolBbrowser 构建产物
+ToolBbrowser/node_modules/
+ToolBbrowser/dist/
+ToolBbrowser/.turbo/
+ToolBbrowser/data/
+
+# Scrapling 构建产物
+Scrapling-main/*.egg-info/
+Scrapling-main/build/
+Scrapling-main/dist/
+
