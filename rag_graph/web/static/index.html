@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GraphRAG Web UI</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+</head>
+<body>
+
+    <!-- Background Particle Canvas -->
+    <canvas id="particle-canvas"></canvas>
+
+    <!-- Sidebar -->
+    <div id="sidebar">
+        <div class="brand">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-primary">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+            </svg> 
+            GraphRAG
+        </div>
+        <ul class="nav-menu">
+            <li class="nav-item active" data-target="panel-chat">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-ink"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                对话问答
+            </li>
+            <li class="nav-item" data-target="panel-system">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-ink"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+                系统状态
+            </li>
+            <li class="nav-item" data-target="panel-collect">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-ink"><path d="M2 12h5m15 0h-5m-2.5-7.5L12 2m0 20l2.5-7.5M7.5 4.5L12 12m4.5-7.5L12 12M7.5 19.5L12 12m4.5 7.5L12 12"></path></svg>
+                数据采集
+            </li>
+            <li class="nav-item" data-target="panel-data">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-ink"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                数据文件
+            </li>
+            <li class="nav-item" data-target="panel-cache">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-ink"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path></svg>
+                缓存管理
+            </li>
+            <li class="nav-item" data-target="panel-config">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-ink"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                系统配置
+            </li>
+        </ul>
+    </div>
+
+    <!-- Main Content -->
+    <div id="main-content">
+        <!-- Status Bar -->
+        <div id="status-bar">
+            <div class="status-indicator">
+                <div id="sys-dot" class="status-dot"></div>
+                <span id="sys-status-text">系统未就绪</span>
+            </div>
+            <div>
+                模型: <span id="sys-model">加载中...</span>
+            </div>
+        </div>
+
+        <!-- Warning Banner -->
+        <div id="global-warning" class="warning-banner mx-6 mt-4">
+            系统初始化中，请稍候: <span id="init-progress-text">...</span>
+        </div>
+
+        <!-- Chat Panel -->
+        <div id="panel-chat" class="panel active">
+            <div class="flex justify-between items-center mb-4 shrink-0">
+                <h2 class="text-xl font-bold">智能对话</h2>
+                <button id="btn-clear-chat" class="btn-secondary text-sm">清空对话</button>
+            </div>
+            <div id="chat-container" class="flex-1 min-h-0">
+                <!-- Messages go here -->
+                <div class="message assistant">
+                    <div class="message-content">你好！我是 GraphRAG 智能旅游助手。系统准备就绪后，你可以问我任何旅游相关的问题。</div>
+                </div>
+            </div>
+            <div id="chat-input-container" class="shrink-0 mt-4">
+                <textarea id="chat-input" rows="3" placeholder="输入问题，Shift+Enter 换行，Enter 发送..."></textarea>
+                <div class="flex flex-col gap-2">
+                    <button id="btn-send" class="flex-1">发送</button>
+                    <button id="btn-stop" class="btn-secondary flex-1 hidden">停止</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Panel -->
+        <div id="panel-system" class="panel">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-bold">系统状态与知识库统计</h2>
+                <button id="btn-refresh-system" class="btn-secondary text-sm">重新检查</button>
+            </div>
+            
+            <h3 class="text-lg font-semibold mb-4">服务连接状态</h3>
+            <div class="card-grid mb-8" id="health-cards">
+                <!-- Health cards -->
+            </div>
+
+            <h3 class="text-lg font-semibold mb-4">知识库统计</h3>
+            <div class="card-grid" id="kb-cards">
+                <!-- KB stats -->
+            </div>
+        </div>
+
+        <!-- Collect Panel -->
+        <div id="panel-collect" class="panel">
+            <h2 class="text-xl font-bold mb-6">数据采集</h2>
+            <div class="flex gap-8">
+                <div class="w-1/2">
+                    <div class="card">
+                        <form id="form-collect">
+                            <div class="form-group">
+                                <label>采集引擎</label>
+                                <select id="col-engine" class="form-control">
+                                    <option value="auto">Auto (自动选择)</option>
+                                    <option value="scrapling">Scrapling</option>
+                                    <option value="toolbbrowser">ToolBbrowser</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>来源站点</label>
+                                <input type="text" id="col-source" class="form-control" placeholder="如 zhihu, weibo, xhs" value="zhihu">
+                            </div>
+                            <div class="form-group">
+                                <label>任务类型</label>
+                                <select id="col-task" class="form-control">
+                                    <option value="hot_list">Hot List (热榜)</option>
+                                    <option value="search">Search (搜索)</option>
+                                    <option value="article">Article (文章)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>目标 URL (可选)</label>
+                                <input type="text" id="col-url" class="form-control" placeholder="https://...">
+                            </div>
+                            <div class="form-group">
+                                <label>搜索关键词 (可选)</label>
+                                <input type="text" id="col-keyword" class="form-control" placeholder="搜索关键词">
+                            </div>
+                            <div class="form-group flex items-center gap-2">
+                                <input type="checkbox" id="col-mock">
+                                <label class="mb-0">Mock 模式 (模拟采集)</label>
+                            </div>
+                            <button type="submit" id="btn-start-collect" class="w-full mt-4">开始采集</button>
+                        </form>
+                    </div>
+                </div>
+                <div class="w-1/2 flex flex-col">
+                    <h3 class="font-semibold mb-2">采集日志与结果</h3>
+                    <div id="collect-logs" class="code-preview flex-1 h-64 overflow-y-auto mb-4">
+                        等待开始...
+                    </div>
+                    <div id="collect-result" class="card hidden">
+                        <h4 class="font-bold text-success mb-2">采集完成</h4>
+                        <p>采集条数: <span id="res-count">0</span></p>
+                        <p class="truncate" title="">保存路径: <span id="res-path">-</span></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Data Panel -->
+        <div id="panel-data" class="panel">
+            <h2 class="text-xl font-bold mb-6">数据文件浏览</h2>
+            <div class="flex gap-4 mb-6">
+                <select id="data-type" class="form-control w-48">
+                    <option value="normalized">Normalized (标准化)</option>
+                    <option value="raw">Raw (原始数据)</option>
+                </select>
+                <select id="data-source" class="form-control w-48">
+                    <option value="scrapling">Scrapling</option>
+                    <option value="toolbbrowser">ToolBbrowser</option>
+                </select>
+                <button id="btn-load-files" class="btn-secondary">加载文件</button>
+            </div>
+            
+            <div class="flex gap-6 h-full min-h-0">
+                <div class="w-1/3 overflow-y-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr>
+                                <th>文件名</th>
+                                <th>大小(KB)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="file-list-body">
+                            <!-- Files -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="w-2/3 h-full flex flex-col">
+                    <h3 class="font-semibold mb-2" id="preview-title">文件预览 (前 20 条)</h3>
+                    <pre class="code-preview flex-1 m-0"><code id="file-preview" class="language-json">选择左侧文件查看内容...</code></pre>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cache Panel -->
+        <div id="panel-cache" class="panel">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-bold">缓存管理</h2>
+                <button id="btn-clear-all-cache" class="btn-danger text-sm">清空全部缓存</button>
+            </div>
+            <div class="card-grid" id="cache-cards">
+                <!-- Cache cards -->
+            </div>
+        </div>
+
+        <!-- Config Panel -->
+        <div id="panel-config" class="panel">
+            <h2 class="text-xl font-bold mb-6">系统配置</h2>
+            <div class="card">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr>
+                            <th class="w-1/3">配置项</th>
+                            <th>当前值</th>
+                        </tr>
+                    </thead>
+                    <tbody id="config-table-body">
+                        <!-- Config rows -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

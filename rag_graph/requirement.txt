@@ -57,3 +57,8 @@ lark==1.2.2
 lazy_loader==0.4
 pyarrow==20.0.0
 neo4j==6.0.3
+
+# Web UI 依赖
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+python-multipart>=0.0.9

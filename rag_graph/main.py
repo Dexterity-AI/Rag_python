@@ -66,6 +66,7 @@ def main():
   query <问题>   单次查询模式
   config list    列出配置
   doctor         系统健康检查
+  web            启动 Web UI 服务
 
 选项:
   -h, --help     显示帮助信息
@@ -77,6 +78,7 @@ def main():
   python main.py                      # 启动交互式界面
   python main.py query "北京有什么好玩的"  # 单次查询
   python main.py doctor               # 检查系统状态
+  python main.py web --port 8080      # 启动 Web UI
 """)
         sys.exit(0)
     

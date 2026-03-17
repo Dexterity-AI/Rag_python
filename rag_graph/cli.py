@@ -645,5 +645,225 @@ def cache_clear(
             raise typer.Exit(1)
 
 
+# Collect 子命令组 - 统一采集入口
+collect_app = typer.Typer(help="数据采集命令")
+app.add_typer(collect_app, name="collect")
+
+
+@collect_app.command("run")
+def collect_run(
+    engine: str = typer.Argument(..., help="采集引擎: toolbbrowser, scrapling, auto"),
+    source: str = typer.Option(..., "--source", "-s", help="来源站点: zhihu, weibo, news等"),
+    task: str = typer.Option(..., "--task", "-t", help="任务类型: hot_list, search, article等"),
+    url: Optional[str] = typer.Option(None, "--url", "-u", help="目标URL"),
+    keyword: Optional[str] = typer.Option(None, "--keyword", "-k", help="搜索关键词"),
+    output: Optional[str] = typer.Option(None, "--output", "-o", help="输出目录"),
+    mock: bool = typer.Option(False, "--mock", help="使用模拟模式"),
+):
+    """
+    执行采集任务
+
+    示例:
+        python cli.py collect run toolbbrowser -s zhihu -t hot_list
+        python cli.py collect run scrapling -s news -t article -u https://example.com
+        python cli.py collect run auto -s zhihu -t hot_list --mock
+    """
+    from collectors import CollectionManager, ToolBbrowserAdapter, ScraplingAdapter
+
+    console.print(f"\n[{theme.primary}]🕷️ 启动数据采集[/]\n")
+
+    # 创建管理器
+    manager = CollectionManager()
+
+    # 注册适配器（如果不是mock模式）
+    if not mock:
+        manager.register_collector('toolbbrowser', ToolBbrowserAdapter())
+        manager.register_collector('scrapling', ScraplingAdapter())
+    else:
+        # mock 模式下注册空配置适配器
+        manager.register_collector('toolbbrowser', ToolBbrowserAdapter({'mock': True}))
+        manager.register_collector('scrapling', ScraplingAdapter({'mock': True}))
+
+    # 确定引擎
+    if engine == 'auto':
+        task_config = {
+            'source_site': source,
+            'task_type': task,
+            'url': url,
+            'keyword': keyword,
+        }
+        selected_engine = manager.auto_select_engine(task_config)
+        if not selected_engine:
+            console.print(f"[{theme.error}]❌ 无法自动选择合适的引擎[/]")
+            raise typer.Exit(1)
+        console.print(f"[{theme.info}]自动选择引擎: {selected_engine}[/]")
+        engine = selected_engine
+
+    # 构建任务配置
+    task_config = {
+        'source_site': source,
+        'task_type': task,
+    }
+    if url:
+        task_config['url'] = url
+    if keyword:
+        task_config['keyword'] = keyword
+
+    # 执行采集
+    with console.status(f"[{theme.secondary_text}]采集中...[/]"):
+        result = manager.collect(
+            engine=engine,
+            task_config=task_config,
+            output_dir=output
+        )
+
+    # 显示结果
+    console.print(f"\n[{theme.info}]📊 采集结果:[/]\n")
+    console.print(f"  状态: [{'green' if result.status == 'success' else 'red'}]{result.status}[/]")
+    console.print(f"  引擎: {result.source_project}")
+    console.print(f"  来源: {result.source_site}")
+    console.print(f"  任务: {result.task_type}")
+    console.print(f"  条数: {result.item_count}")
+
+    if result.raw_file_path:
+        console.print(f"  原始数据: {result.raw_file_path}")
+    if result.normalized_file_path:
+        console.print(f"  标准化数据: {result.normalized_file_path}")
+
+    if result.error_message and result.status != 'success':
+        console.print(f"\n[{theme.error}]错误: {result.error_message}[/]")
+
+    # 显示数据预览
+    if result.items:
+        console.print(f"\n[{theme.info}]📄 数据预览 (前3条):[/]\n")
+        for i, item in enumerate(result.items[:3], 1):
+            console.print(f"  {i}. {item.title[:50]}..." if len(item.title) > 50 else f"  {i}. {item.title}")
+
+    console.print()
+
+
+@collect_app.command("list-engines")
+def collect_list_engines():
+    """列出可用的采集引擎"""
+    from collectors import CollectionManager, ToolBbrowserAdapter, ScraplingAdapter
+
+    manager = CollectionManager()
+    manager.register_collector('toolbbrowser', ToolBbrowserAdapter())
+    manager.register_collector('scrapling', ScraplingAdapter())
+
+    console.print(f"\n[{theme.primary}]📦 可用采集引擎:[/]\n")
+
+    for name in manager.list_collectors():
+        collector = manager.get_collector(name)
+        health = collector.health_check()
+
+        status_icon = "✅" if health.get('cli_available') or health.get('module_available') else "⚠️"
+        console.print(f"  {status_icon} {name}")
+
+        if 'cli_available' in health:
+            console.print(f"     CLI可用: {'是' if health['cli_available'] else '否'}")
+        if 'module_available' in health:
+            console.print(f"     模块可用: {'是' if health['module_available'] else '否'}")
+
+    console.print()
+
+
+@collect_app.command("stats")
+def collect_stats():
+    """显示采集统计信息"""
+    from collectors import CollectionManager
+
+    manager = CollectionManager()
+    stats = manager.get_statistics()
+
+    console.print(f"\n[{theme.primary}]📊 采集统计[/]\n")
+
+    console.print(f"[{theme.info}]数据目录:[/]")
+    for dir_name, count in stats['data_directories'].items():
+        console.print(f"  {dir_name}: {count} 个文件")
+
+    console.print()
+
+
+@collect_app.command("demo")
+def collect_demo():
+    """运行采集演示"""
+    from collectors import CollectionManager, ToolBbrowserAdapter, ScraplingAdapter
+
+    console.print(f"\n[{theme.primary}]🎮 运行采集演示[/]\n")
+
+    # 创建管理器
+    manager = CollectionManager()
+
+    # 注册适配器
+    manager.register_collector('toolbbrowser', ToolBbrowserAdapter())
+    manager.register_collector('scrapling', ScraplingAdapter())
+
+    # 演示任务列表
+    demo_tasks = [
+        {
+            'engine': 'toolbbrowser',
+            'task_config': {
+                'source_site': 'zhihu',
+                'task_type': 'hot_list',
+            }
+        },
+        {
+            'engine': 'scrapling',
+            'task_config': {
+                'source_site': 'example',
+                'task_type': 'article',
+                'url': 'https://example.com',
+            }
+        },
+    ]
+
+    results = []
+    for task in demo_tasks:
+        engine = task['engine']
+        task_config = task['task_config']
+
+        console.print(f"[{theme.info}]执行: {engine} / {task_config['source_site']} / {task_config['task_type']}[/]")
+
+        result = manager.collect(
+            engine=engine,
+            task_config=task_config
+        )
+        results.append(result)
+
+        status_color = theme.success if result.status == 'success' else theme.error
+        console.print(f"  状态: [{status_color}]{result.status}[/], 条数: {result.item_count}")
+        if result.normalized_file_path:
+            console.print(f"  输出: {result.normalized_file_path}")
+        console.print()
+
+    # 汇总
+    success_count = sum(1 for r in results if r.status == 'success')
+    console.print(f"[{theme.success}]演示完成: {success_count}/{len(results)} 个任务成功[/]")
+    console.print()
+
+
+@app.command()
+def web(
+    port: int = typer.Option(8080, "--port", "-p", help="监听端口"),
+    host: str = typer.Option("127.0.0.1", "--host", "-H", help="监听地址"),
+    reload: bool = typer.Option(False, "--reload", "-r", help="开发模式热重载"),
+):
+    """
+    启动 Web UI 服务
+    
+    使用 FastAPI 和 pure HTML/JS/CSS 提供网页交互界面。
+    """
+    import uvicorn
+    console.print(f"[{theme.primary}]🌐 启动 Web UI 服务 (http://{host}:{port})...[/]")
+    
+    # Run uvicorn with factory pattern if reload is used, else direct call
+    if reload:
+        uvicorn.run("web.app:create_app", host=host, port=port, reload=True, factory=True)
+    else:
+        from web.app import create_app
+        uvicorn.run(create_app(), host=host, port=port)
+
+
 if __name__ == "__main__":
     app()
