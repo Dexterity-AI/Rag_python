@@ -298,7 +298,7 @@ cp config/.env.example config/.env
 
 ## 联系我
 
-- **项目主页**: [https://github.com/Zzeng0917/Rag_python](https://github.com/Zzeng0917/Rag_python)
+- **项目主页**: [https://github.com/Dexterity-AI/Rag_python](https://github.com/Dexterity-AI/Rag_python)
 - **问题反馈**: [Issues](https://github.com/Zzeng0917/Rag_python/issues)
 - **功能建议**: [Discussions](https://github.com/Zzeng0917/Rag_python/discussions)
 - **邮箱**: zxd450273@gmail.com
