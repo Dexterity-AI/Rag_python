@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -73,14 +73,20 @@ def create_app() -> FastAPI:
     static_dir = os.path.join(os.path.dirname(__file__), "static")
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
-    # SPA Fallback
+    # SPA Fallback - 只处理非API路由
     @app.get("/")
+    async def serve_root():
+        index_file = os.path.join(static_dir, "index.html")
+        if os.path.exists(index_file):
+            return FileResponse(index_file)
+        return {"detail": "Web UI not built"}
+
     @app.get("/{path:path}")
     async def serve_spa(path: str):
-        # Prevent API routes from hitting SPA fallback
+        # API 路由不应该走到这里，但如果走到这里，返回 404 让前端知道
         if path.startswith("api/"):
-            return {"detail": "API route not found"}
-        
+            raise HTTPException(status_code=404, detail=f"API endpoint not found: /{path}")
+
         index_file = os.path.join(static_dir, "index.html")
         if os.path.exists(index_file):
             return FileResponse(index_file)

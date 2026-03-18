@@ -1,0 +1,83 @@
+{
+  "source_project": "scrapling",
+  "source_site": "zhihu",
+  "task_type": "search",
+  "fetch_time": "2026-03-18T02:30:51.044241Z",
+  "start_time": null,
+  "end_time": "2026-03-18T02:30:51.044259Z",
+  "request_url": "",
+  "keyword": "南京 旅游",
+  "items": [
+    {
+      "title": "模拟文章 1 - zhihu",
+      "url": "http://example.com/1",
+      "content": "这是模拟文章内容...",
+      "summary": "这是模拟文章内容...",
+      "author": "模拟作者",
+      "publish_time": null,
+      "source": "zhihu",
+      "tags": [],
+      "heat": null,
+      "rank": null,
+      "extra": {}
+    },
+    {
+      "title": "模拟文章 2 - zhihu",
+      "url": "http://example.com/2",
+      "content": "这是另一篇模拟文章内容...",
+      "summary": "这是另一篇模拟文章内容...",
+      "author": "模拟作者",
+      "publish_time": null,
+      "source": "zhihu",
+      "tags": [],
+      "heat": null,
+      "rank": null,
+      "extra": {}
+    },
+    {
+      "title": "模拟文章 3 - zhihu",
+      "url": "http://example.com/3",
+      "content": "这是第三篇模拟文章内容...",
+      "summary": "这是第三篇模拟文章内容...",
+      "author": "模拟作者",
+      "publish_time": null,
+      "source": "zhihu",
+      "tags": [],
+      "heat": null,
+      "rank": null,
+      "extra": {}
+    }
+  ],
+  "item_count": 3,
+  "raw_file_path": "/Users/zeng/Desktop/Rag/data/scrapling/raw/zhihu_search_raw_2026-03-18T02-30-51-044Z.json",
+  "normalized_file_path": null,
+  "status": "success",
+  "error_message": "MOCK_MODE: 返回模拟数据",
+  "raw_data_snapshot": {
+    "source": "zhihu",
+    "task_type": "search",
+    "url": "",
+    "fetch_time": "2026-03-18T02:30:51.044193Z",
+    "count": 3,
+    "data": [
+      {
+        "title": "模拟文章 1 - zhihu",
+        "url": "http://example.com/1",
+        "content": "这是模拟文章内容...",
+        "author": "模拟作者"
+      },
+      {
+        "title": "模拟文章 2 - zhihu",
+        "url": "http://example.com/2",
+        "content": "这是另一篇模拟文章内容...",
+        "author": "模拟作者"
+      },
+      {
+        "title": "模拟文章 3 - zhihu",
+        "url": "http://example.com/3",
+        "content": "这是第三篇模拟文章内容...",
+        "author": "模拟作者"
+      }
+    ]
+  }
+}

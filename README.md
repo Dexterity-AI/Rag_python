@@ -92,8 +92,14 @@ cd Rag_python
 conda create -n rag_graph python=3.12.7
 conda activate rag_graph
 
-# 3. 启动 Docker 服务
-docker-compose up -d --build
+# 3. 启动基础设施服务 (Neo4j + Milvus)
+# 方式一：使用 CLI（推荐，自动检测服务就绪状态）
+cd rag_graph
+python main.py service up
+
+# 方式二：使用 docker-compose 直接启动
+cd config
+docker-compose up -d
 
 # 4. 安装依赖
 pip install -r requirement.txt
@@ -129,8 +135,11 @@ uvicorn web.app:create_app --reload --port 8000
 # 进入项目目录
 cd rag_graph
 
-# 启动交互式 CLI
+# 启动交互式 CLI（自动检查服务状态，如未启动会提示）
 python main.py
+
+# 自动启动基础设施后运行（如果服务未启动，自动启动 Docker 容器）
+python main.py start -a
 
 # 单次查询模式
 python main.py query "北京有哪些必去的景点？"
@@ -140,6 +149,54 @@ python main.py doctor
 
 # 查看所有命令
 python main.py --help
+```
+
+**基础设施服务管理**
+
+```bash
+# 启动所有基础设施服务 (Neo4j + Milvus)
+python main.py service up
+
+# 查看服务状态和健康检查
+python main.py service status
+
+# 查看服务日志
+python main.py service logs
+python main.py service logs -s neo4j -f  # 跟踪 Neo4j 日志
+
+# 重启指定服务（自动等待就绪）
+python main.py service restart neo4j
+python main.py service restart standalone  # 重启 Milvus
+
+# 等待服务就绪（用于检查或脚本）
+python main.py service wait              # 等待所有服务就绪
+python main.py service wait neo4j        # 只等待 Neo4j
+python main.py service wait milvus -t 60 # 等待 Milvus，超时60秒
+
+# 停止所有服务
+python main.py service down
+
+# 停止并删除数据（危险！）
+python main.py service down -v
+```
+
+**服务健康检查与诊断**
+
+系统启动时会自动检查服务状态并提供友好的错误提示：
+
+- **连接失败**: 提示服务是否已启动
+- **认证错误**: 提示检查 .env 配置
+- **超时**: 提示查看日志定位问题
+
+```bash
+# 启动时自动检查服务
+python main.py start
+
+# 跳过服务检查（快速启动）
+python main.py start --skip-service-check
+
+# 自动启动基础设施后运行
+python main.py start -a
 ```
 
 ## 使用指南

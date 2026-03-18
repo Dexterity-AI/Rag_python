@@ -15,6 +15,7 @@ import sys
 import time
 import logging
 import warnings
+import subprocess
 from typing import Optional
 
 # 禁用 urllib3 警告
@@ -358,19 +359,70 @@ def start(
     verbose: bool = typer.Option(False, "--verbose", "-V", help="详细输出模式"),
     debug: bool = typer.Option(False, "--debug", "-d", help="调试模式"),
     safe: bool = typer.Option(False, "--safe", help="安全模式"),
+    skip_service_check: bool = typer.Option(False, "--skip-service-check", help="跳过服务检查"),
+    auto_start: bool = typer.Option(False, "--auto-start", "-a", help="服务未启动时自动启动"),
 ):
     """
     启动交互式 GraphRAG 助手
-    
+
     这是主要的入口命令，启动后可以进行交互式问答。
+
+    示例:
+        python main.py start                    # 正常启动
+        python main.py start -a                 # 自动启动基础设施服务
+        python main.py start --skip-service-check  # 跳过服务检查
     """
     setup_logging(verbose, debug)
-    
-    # 创建应用实例
-    rag_app = GraphRAGApp(console)
-    
+
     # 显示启动信息
     console.clear()
+
+    # 检查服务状态
+    if not skip_service_check:
+        console.print(f"[{theme.info}]🔍 检查基础设施服务...[/]")
+
+        neo4j_ready = check_service_health("bolt://localhost:7687", "neo4j")
+        milvus_ready = check_service_health("localhost:19530", "milvus")
+
+        if not neo4j_ready or not milvus_ready:
+            console.print(f"[{theme.warning}]⚠️ 检测到服务未启动:[/]")
+            if not neo4j_ready:
+                console.print(f"  ❌ Neo4j (bolt://localhost:7687)")
+            if not milvus_ready:
+                console.print(f"  ❌ Milvus (localhost:19530)")
+            console.print()
+
+            if auto_start:
+                console.print(f"[{theme.info}]🚀 自动启动基础设施服务...[/]")
+                returncode, _, stderr = run_docker_compose(["up", "-d"], capture=True)
+                if returncode != 0:
+                    console.print(f"[{theme.error}]❌ 启动失败: {stderr}[/]")
+                    raise typer.Exit(1)
+
+                console.print(f"[{theme.success}]✅ Docker 容器已启动[/]")
+                console.print(f"[{theme.info}]⏳ 等待服务就绪...[/]")
+
+                if wait_for_services_ready():
+                    console.print(f"[{theme.success}]✅ 所有服务已就绪！[/]")
+                else:
+                    console.print(f"[{theme.error}]❌ 服务启动超时，请检查日志[/]")
+                    raise typer.Exit(1)
+            else:
+                console.print(f"[{theme.info}]💡 提示: 可以使用以下命令启动服务[/]")
+                console.print(f"  python main.py service up")
+                console.print(f"  或")
+                console.print(f"  python main.py start -a   # 自动启动服务")
+                console.print()
+
+                if not typer.confirm("是否继续尝试启动？"):
+                    raise typer.Exit(0)
+        else:
+            console.print(f"[{theme.success}]✅ 所有服务已就绪[/]")
+
+    console.print()
+
+    # 创建应用实例
+    rag_app = GraphRAGApp(console)
 
     # 初始化系统
     console.print(f"[{theme.info}]初始化系统中...[/]")
@@ -643,6 +695,572 @@ def cache_clear(
         if not any([vector, graph, llm]):
             console.print(f"[{theme.warning}]⚠️ 请指定要清空的缓存类型（--vector, --graph, --llm, --all）[/]")
             raise typer.Exit(1)
+
+
+# Service 子命令组 - 服务管理
+def get_compose_file() -> str:
+    """获取 docker-compose 文件路径"""
+    # 从 rag_graph 目录向上找到项目根目录
+    rag_graph_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(rag_graph_dir)
+    return os.path.join(project_root, "config", "docker-compose.yml")
+
+
+def check_docker_daemon() -> tuple:
+    """
+    检查 Docker 守护进程是否运行
+
+    Returns:
+        (is_running: bool, error_msg: str)
+    """
+    try:
+        result = subprocess.run(
+            ["docker", "info"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if result.returncode == 0:
+            return True, ""
+        else:
+            return False, result.stderr
+    except FileNotFoundError:
+        return False, "Docker 命令未找到，请确保 Docker 已安装"
+    except subprocess.TimeoutExpired:
+        return False, "检查 Docker 状态超时"
+    except Exception as e:
+        return False, str(e)
+
+
+def show_docker_start_help():
+    """显示 Docker 启动帮助信息"""
+    console.print(f"\n[{theme.error}]❌ Docker 守护进程未运行[/]\n")
+    console.print(f"[{theme.info}]💡 解决方案:[/]\n")
+
+    # 检测操作系统
+    system = sys.platform
+
+    if system == "darwin":  # macOS
+        console.print("  macOS 用户:")
+        console.print("  1. 打开 Launchpad → 启动 Docker 应用")
+        console.print("  2. 或运行命令: open /Applications/Docker.app")
+        console.print("  3. 等待菜单栏出现 Docker 图标 🐳\n")
+    elif system == "linux":
+        console.print("  Linux 用户:")
+        console.print("  1. 运行: sudo systemctl start docker")
+        console.print("  2. 或: sudo service docker start\n")
+    elif system == "win32":
+        console.print("  Windows 用户:")
+        console.print("  1. 从开始菜单启动 Docker Desktop")
+        console.print("  2. 等待系统托盘中出现 Docker 图标\n")
+
+    console.print(f"[{theme.secondary_text}]启动 Docker 后，请重新运行当前命令[/]\n")
+
+
+def run_docker_compose(args: list, capture: bool = False) -> tuple:
+    """运行 docker-compose 命令"""
+    # 先检查 Docker 守护进程
+    is_running, error = check_docker_daemon()
+    if not is_running:
+        show_docker_start_help()
+        raise typer.Exit(1)
+
+    compose_file = get_compose_file()
+    cmd = ["docker-compose", "-f", compose_file] + args
+
+    if capture:
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        return result.returncode, result.stdout, result.stderr
+    else:
+        result = subprocess.run(cmd)
+        return result.returncode, "", ""
+
+
+service_app = typer.Typer(help="Docker 服务管理")
+app.add_typer(service_app, name="service")
+
+
+@service_app.command("up")
+def service_up(
+    detach: bool = typer.Option(True, "--detach", "-d", help="后台运行"),
+    build: bool = typer.Option(False, "--build", "-b", help="重新构建镜像"),
+    wait: bool = typer.Option(True, "--wait", "-w", help="等待服务就绪"),
+):
+    """
+    启动所有基础设施服务 (Neo4j + Milvus)
+
+    示例:
+        python main.py service up          # 后台启动
+        python main.py service up -d       # 同上
+        python main.py service up --build  # 重新构建后启动
+    """
+    console.print(f"\n[{theme.primary}]🐳 启动基础设施服务...[/]\n")
+
+    cmd = ["up"]
+    if detach:
+        cmd.append("-d")
+    if build:
+        cmd.append("--build")
+
+    returncode, stdout, stderr = run_docker_compose(cmd)
+
+    if returncode != 0:
+        console.print(f"[{theme.error}]❌ 启动失败: {stderr}[/]")
+        raise typer.Exit(1)
+
+    console.print(f"[{theme.success}]✅ Docker 容器已启动[/]")
+    console.print()
+
+    # 显示服务访问信息
+    console.print(f"[{theme.info}]📋 服务访问地址:[/]")
+    console.print(f"  Neo4j Browser: http://localhost:7474")
+    console.print(f"  Neo4j Bolt:    bolt://localhost:7687")
+    console.print(f"  Milvus gRPC:   localhost:19530")
+    console.print(f"  MinIO Console: http://localhost:9001")
+    console.print()
+
+    if wait:
+        console.print(f"[{theme.info}]⏳ 等待服务就绪...[/]")
+        if wait_for_services_ready():
+            console.print(f"[{theme.success}]✅ 所有服务已就绪！[/]")
+        else:
+            console.print(f"[{theme.warning}]⚠️ 服务可能尚未完全就绪，请稍后再试[/]")
+
+
+@service_app.command("down")
+def service_down(
+    volumes: bool = typer.Option(False, "--volumes", "-v", help="同时删除数据卷"),
+):
+    """
+    停止并移除所有服务
+
+    示例:
+        python main.py service down          # 停止服务
+        python main.py service down -v       # 停止并删除数据（危险！）
+    """
+    console.print(f"\n[{theme.primary}]🛑 停止基础设施服务...[/]\n")
+
+    cmd = ["down"]
+    if volumes:
+        cmd.append("-v")
+        console.print(f"[{theme.warning}]⚠️ 警告: 将同时删除数据卷！[/]")
+        if not typer.confirm("确认删除？"):
+            console.print("已取消")
+            raise typer.Exit(0)
+
+    returncode, _, stderr = run_docker_compose(cmd)
+
+    if returncode != 0:
+        console.print(f"[{theme.error}]❌ 停止失败: {stderr}[/]")
+        raise typer.Exit(1)
+
+    console.print(f"[{theme.success}]✅ 服务已停止[/]")
+
+
+@service_app.command("status")
+def service_status():
+    """
+    查看服务运行状态
+    """
+    console.print(f"\n[{theme.primary}]📊 服务状态[/]\n")
+
+    returncode, stdout, stderr = run_docker_compose(["ps"], capture=True)
+
+    if returncode != 0:
+        console.print(f"[{theme.error}]获取状态失败: {stderr}[/]")
+        raise typer.Exit(1)
+
+    if stdout.strip():
+        console.print(stdout)
+    else:
+        console.print(f"[{theme.secondary_text}]没有运行中的服务[/]")
+
+    # 额外检查服务健康状态
+    console.print(f"\n[{theme.info}]🔍 健康检查:[/]")
+
+    # 检查 Neo4j
+    neo4j_ok = check_service_health("bolt://localhost:7687", service_type="neo4j")
+    neo4j_status = "✅ 健康" if neo4j_ok else "❌ 未连接"
+    console.print(f"  Neo4j: {neo4j_status}")
+
+    # 检查 Milvus
+    milvus_ok = check_service_health("localhost:19530", service_type="milvus")
+    milvus_status = "✅ 健康" if milvus_ok else "❌ 未连接"
+    console.print(f"  Milvus: {milvus_status}")
+
+
+@service_app.command("logs")
+def service_logs(
+    service: str = typer.Option(None, "--service", "-s", help="指定服务: neo4j, standalone, etcd, minio"),
+    follow: bool = typer.Option(False, "--follow", "-f", help="持续跟踪日志"),
+    tail: int = typer.Option(100, "--tail", "-n", help="显示最后 N 行"),
+):
+    """
+    查看服务日志
+
+    示例:
+        python main.py service logs              # 查看所有服务日志
+        python main.py service logs -s neo4j     # 查看 Neo4j 日志
+        python main.py service logs -f           # 持续跟踪所有日志
+    """
+    cmd = ["logs"]
+
+    if follow:
+        cmd.append("-f")
+    if tail:
+        cmd.extend(["--tail", str(tail)])
+    if service:
+        cmd.append(service)
+
+    # 直接运行，让用户可以 Ctrl+C 退出
+    run_docker_compose(cmd)
+
+
+@service_app.command("restart")
+def service_restart(
+    service: str = typer.Argument(..., help="服务名: neo4j, standalone, etcd, minio"),
+    wait: bool = typer.Option(True, "--wait", "-w", help="等待服务就绪"),
+    timeout: int = typer.Option(120, "--timeout", "-t", help="等待超时时间（秒）"),
+):
+    """
+    重启指定服务并等待就绪
+
+    示例:
+        python main.py service restart neo4j          # 重启 Neo4j 并等待就绪
+        python main.py service restart neo4j --no-wait # 重启但不等待
+        python main.py service restart standalone     # 重启 Milvus
+    """
+    console.print(f"\n[{theme.primary}]🔄 重启服务 {service}...[/]\n")
+
+    returncode, _, stderr = run_docker_compose(["restart", service])
+
+    if returncode != 0:
+        console.print(f"[{theme.error}]❌ 重启失败: {stderr}[/]")
+        raise typer.Exit(1)
+
+    console.print(f"[{theme.success}]✅ 服务 {service} 已重启[/]")
+
+    # 等待服务就绪
+    if wait and service in ["neo4j", "standalone"]:
+        service_map = {"neo4j": "neo4j", "standalone": "milvus"}
+        service_key = service_map.get(service)
+        if service_key:
+            console.print()
+            checker = ServiceHealthChecker(console)
+            success, details = checker.wait_for_service(
+                service_key,
+                timeout=timeout,
+                verbose=True
+            )
+            if not success:
+                raise typer.Exit(1)
+
+
+@service_app.command("wait")
+def service_wait(
+    service: str = typer.Argument(None, help="服务名: neo4j, milvus，不指定则等待所有"),
+    timeout: int = typer.Option(180, "--timeout", "-t", help="等待超时时间（秒）"),
+    verbose: bool = typer.Option(True, "--verbose", "-v", help="详细输出"),
+):
+    """
+    等待服务就绪
+
+    示例:
+        python main.py service wait              # 等待所有服务就绪
+        python main.py service wait neo4j        # 只等待 Neo4j
+        python main.py service wait milvus -t 60 # 等待 Milvus，超时60秒
+    """
+    checker = ServiceHealthChecker(console)
+
+    if service:
+        # 等待单个服务
+        success, details = checker.wait_for_service(
+            service,
+            timeout=timeout,
+            verbose=verbose
+        )
+        if not success:
+            raise typer.Exit(1)
+    else:
+        # 等待所有服务
+        results = checker.wait_for_all(
+            timeout=timeout,
+            verbose=verbose
+        )
+        if not results["success"]:
+            raise typer.Exit(1)
+
+
+class ServiceHealthChecker:
+    """服务健康检查器 - 支持详细进度显示和错误诊断"""
+
+    SERVICES = {
+        "neo4j": {
+            "name": "Neo4j",
+            "endpoint": "bolt://localhost:7687",
+            "type": "neo4j",
+            "docker_name": "rag-neo4j",
+            "check_interval": 2,
+            "start_time": 15,  # 预计启动时间（秒）
+        },
+        "milvus": {
+            "name": "Milvus",
+            "endpoint": "localhost:19530",
+            "type": "milvus",
+            "docker_name": "milvus-standalone",
+            "check_interval": 3,
+            "start_time": 30,
+        },
+    }
+
+    def __init__(self, console: Console = None):
+        self.console = console or Console()
+        self.theme = get_theme()
+
+    def check(self, service_name: str, verbose: bool = False) -> tuple:
+        """
+        检查单个服务健康状态
+
+        Returns:
+            (is_healthy: bool, error_msg: str, details: dict)
+        """
+        service_config = self.SERVICES.get(service_name.lower())
+        if not service_config:
+            return False, f"未知服务: {service_name}", {}
+
+        try:
+            if service_config["type"] == "neo4j":
+                return self._check_neo4j(service_config, verbose)
+            elif service_config["type"] == "milvus":
+                return self._check_milvus(service_config, verbose)
+        except Exception as e:
+            error_msg = str(e)
+            if verbose:
+                self.console.print(f"[{self.theme.error}]  检查异常: {error_msg}[/]")
+            return False, error_msg, {}
+
+        return False, "未知服务类型", {}
+
+    def _check_neo4j(self, config: dict, verbose: bool) -> tuple:
+        """检查 Neo4j 健康状态"""
+        from neo4j import GraphDatabase
+        from config.config import DEFAULT_CONFIG
+
+        try:
+            driver = GraphDatabase.driver(
+                config["endpoint"],
+                auth=(DEFAULT_CONFIG.neo4j_user, DEFAULT_CONFIG.neo4j_password)
+            )
+            driver.verify_connectivity()
+
+            # 获取数据库信息
+            with driver.session() as session:
+                result = session.run("CALL dbms.components() YIELD name, versions RETURN name, versions[0] as version")
+                components = [{"name": record["name"], "version": record["version"]} for record in result]
+
+            driver.close()
+
+            details = {
+                "endpoint": config["endpoint"],
+                "components": components,
+            }
+            return True, "", details
+
+        except Exception as e:
+            error_msg = self._diagnose_neo4j_error(str(e))
+            return False, error_msg, {}
+
+    def _check_milvus(self, config: dict, verbose: bool) -> tuple:
+        """检查 Milvus 健康状态"""
+        from pymilvus import connections, utility
+
+        try:
+            host, port = config["endpoint"].split(":")
+            connections.connect(alias="health_check", host=host, port=port)
+
+            # 获取服务器版本
+            version = utility.get_server_version()
+
+            # 获取集合数量
+            collections = utility.list_collections()
+
+            connections.disconnect("health_check")
+
+            details = {
+                "endpoint": config["endpoint"],
+                "version": version,
+                "collections": len(collections),
+            }
+            return True, "", details
+
+        except Exception as e:
+            error_msg = self._diagnose_milvus_error(str(e))
+            return False, error_msg, {}
+
+    def _diagnose_neo4j_error(self, error: str) -> str:
+        """诊断 Neo4j 错误并给出友好提示"""
+        if "Failed to establish connection" in error or "Connection refused" in error:
+            return "无法连接到 Neo4j，请检查服务是否已启动 (python main.py service up)"
+        elif "Unauthorized" in error or "Authentication" in error:
+            return "认证失败，请检查 config/.env 中的 NEO4J_USER 和 NEO4J_PASSWORD"
+        elif "ServiceUnavailable" in error:
+            return "Neo4j 服务不可用，可能正在启动中，请稍后再试"
+        return f"连接错误: {error}"
+
+    def _diagnose_milvus_error(self, error: str) -> str:
+        """诊断 Milvus 错误并给出友好提示"""
+        if "failed to connect" in error.lower() or "connection refused" in error.lower():
+            return "无法连接到 Milvus，请检查服务是否已启动 (python main.py service up)"
+        elif "timeout" in error.lower():
+            return "连接 Milvus 超时，服务可能仍在启动中"
+        return f"连接错误: {error}"
+
+    def wait_for_service(
+        self,
+        service_name: str,
+        timeout: int = 120,
+        verbose: bool = True,
+        progress_callback=None
+    ) -> tuple:
+        """
+        等待单个服务就绪
+
+        Returns:
+            (success: bool, details: dict)
+        """
+        service_config = self.SERVICES.get(service_name.lower())
+        if not service_config:
+            return False, {"error": f"未知服务: {service_name}"}
+
+        import time
+
+        start_time = time.time()
+        check_count = 0
+        last_error = ""
+
+        if verbose:
+            self.console.print(f"[{self.theme.info}]⏳ 等待 {service_config['name']} 就绪...[/]")
+
+        while time.time() - start_time < timeout:
+            check_count += 1
+            is_healthy, error_msg, details = self.check(service_name, verbose=False)
+
+            if is_healthy:
+                elapsed = time.time() - start_time
+                if verbose:
+                    self.console.print(f"[{self.theme.success}]  ✅ {service_config['name']} 已就绪 (耗时 {elapsed:.1f}s)[/]")
+                    if details:
+                        if "version" in details:
+                            self.console.print(f"[{self.theme.secondary_text}]     版本: {details['version']}[/]")
+                        if "collections" in details:
+                            self.console.print(f"[{self.theme.secondary_text}]     集合数: {details['collections']}[/]")
+                return True, details
+
+            if error_msg and error_msg != last_error and verbose:
+                self.console.print(f"[{self.theme.warning}]  尝试 {check_count}: {error_msg}[/]")
+                last_error = error_msg
+
+            if progress_callback:
+                progress_callback(check_count, timeout // service_config["check_interval"])
+
+            time.sleep(service_config["check_interval"])
+
+        # 超时
+        elapsed = time.time() - start_time
+        error = f"等待 {service_config['name']} 超时 ({elapsed:.1f}s > {timeout}s)"
+        if verbose:
+            self.console.print(f"[{self.theme.error}]  ❌ {error}[/]")
+            self.console.print(f"[{self.theme.info}]💡 建议: 查看日志 python main.py service logs -s {service_config['docker_name']}[/]")
+
+        return False, {"error": error, "last_error": last_error}
+
+    def wait_for_all(
+        self,
+        services: list = None,
+        timeout: int = 180,
+        verbose: bool = True,
+        parallel: bool = False
+    ) -> dict:
+        """
+        等待多个服务就绪
+
+        Args:
+            services: 服务列表，None 表示所有服务
+            timeout: 总超时时间
+            verbose: 是否显示详细输出
+            parallel: 是否并行检查（默认顺序检查）
+
+        Returns:
+            {
+                "success": bool,
+                "services": {
+                    "neo4j": {"ready": bool, "details": dict, "elapsed": float},
+                    "milvus": {...}
+                },
+                "total_elapsed": float
+            }
+        """
+        import time
+
+        if services is None:
+            services = list(self.SERVICES.keys())
+
+        start_time = time.time()
+        results = {"success": True, "services": {}, "total_elapsed": 0}
+
+        if verbose:
+            self.console.print(f"\n[{self.theme.primary}]🚀 等待基础设施服务就绪...[/]\n")
+
+        for service_name in services:
+            service_start = time.time()
+            success, details = self.wait_for_service(
+                service_name,
+                timeout=timeout,
+                verbose=verbose
+            )
+            elapsed = time.time() - service_start
+
+            results["services"][service_name] = {
+                "ready": success,
+                "details": details,
+                "elapsed": elapsed
+            }
+
+            if not success:
+                results["success"] = False
+
+        results["total_elapsed"] = time.time() - start_time
+
+        if verbose:
+            if results["success"]:
+                self.console.print(f"\n[{self.theme.success}]✅ 所有服务已就绪 (总耗时 {results['total_elapsed']:.1f}s)[/]")
+            else:
+                failed = [name for name, r in results["services"].items() if not r["ready"]]
+                self.console.print(f"\n[{self.theme.error}]❌ 部分服务未就绪: {', '.join(failed)}[/]")
+
+        return results
+
+
+def check_service_health(endpoint: str, service_type: str = "neo4j") -> bool:
+    """检查单个服务健康状态（简化版，兼容旧代码）"""
+    checker = ServiceHealthChecker()
+    service_map = {
+        "neo4j": "neo4j",
+        "milvus": "milvus"
+    }
+    service_name = service_map.get(service_type)
+    if not service_name:
+        return False
+
+    is_healthy, _, _ = checker.check(service_name, verbose=False)
+    return is_healthy
+
+
+def wait_for_services_ready(timeout: int = 120) -> bool:
+    """等待所有服务就绪（兼容旧代码）"""
+    checker = ServiceHealthChecker(console)
+    results = checker.wait_for_all(timeout=timeout, verbose=True)
+    return results["success"]
 
 
 # Collect 子命令组 - 统一采集入口

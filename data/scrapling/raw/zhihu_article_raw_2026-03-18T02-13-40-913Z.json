@@ -1,0 +1,27 @@
+{
+  "source": "zhihu",
+  "task_type": "article",
+  "url": "",
+  "fetch_time": "2026-03-18T02:13:40.913265Z",
+  "count": 3,
+  "data": [
+    {
+      "title": "模拟文章 1 - zhihu",
+      "url": "http://example.com/1",
+      "content": "这是模拟文章内容...",
+      "author": "模拟作者"
+    },
+    {
+      "title": "模拟文章 2 - zhihu",
+      "url": "http://example.com/2",
+      "content": "这是另一篇模拟文章内容...",
+      "author": "模拟作者"
+    },
+    {
+      "title": "模拟文章 3 - zhihu",
+      "url": "http://example.com/3",
+      "content": "这是第三篇模拟文章内容...",
+      "author": "模拟作者"
+    }
+  ]
+}

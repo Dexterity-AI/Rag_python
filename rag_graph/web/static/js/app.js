@@ -316,13 +316,27 @@ async function loadFiles() {
     const type = document.getElementById('data-type').value;
     const source = document.getElementById('data-source').value;
     const tbody = document.getElementById('file-list-body');
-    
+
     tbody.innerHTML = '<tr><td colspan="2">加载中...</td></tr>';
-    
+
     try {
         const res = await fetch(`/api/data/files?type=${type}&source=${source}&size=50`);
         const data = await res.json();
-        
+
+        // 检查错误响应
+        if (!res.ok) {
+            const errorMsg = data.detail || `HTTP ${res.status}`;
+            tbody.innerHTML = `<tr><td colspan="2" class="text-error">加载失败: ${errorMsg}</td></tr>`;
+            return;
+        }
+
+        // 检查数据格式
+        if (!data.files || !Array.isArray(data.files)) {
+            tbody.innerHTML = `<tr><td colspan="2" class="text-error">数据格式错误</td></tr>`;
+            console.error('Invalid response:', data);
+            return;
+        }
+
         tbody.innerHTML = '';
         if (data.files.length === 0) {
             tbody.innerHTML = '<tr><td colspan="2">没有找到文件</td></tr>';
@@ -353,18 +367,42 @@ async function loadFiles() {
 async function previewFile(path, filename) {
     const preview = document.getElementById('file-preview');
     const title = document.getElementById('preview-title');
-    
+
     title.innerText = `预览: ${filename} (前 20 条)`;
     preview.innerText = '加载中...';
-    
+
+    // 调试信息
+    console.log('[DEBUG] Preview file path:', path);
+
     try {
-        const res = await fetch(`/api/data/files/${encodeURIComponent(path)}`);
-        if (!res.ok) throw new Error('File not found or access denied');
+        // 使用 query 参数传递路径，避免 URL 编码问题
+        const url = `/api/data/content?path=${encodeURIComponent(path)}`;
+        console.log('[DEBUG] Fetch URL:', url);
+
+        const res = await fetch(url);
+        console.log('[DEBUG] Response status:', res.status);
+
+        if (!res.ok) {
+            const err = await res.json();
+            console.error('[DEBUG] Error response:', err);
+            throw new Error(err.detail || `HTTP ${res.status}`);
+        }
         const data = await res.json();
-        
-        preview.innerText = JSON.stringify(data, null, 2);
-        delete preview.dataset.highlighted;
-        hljs.highlightElement(preview);
+
+        // 限制显示内容大小，避免卡顿
+        const jsonStr = JSON.stringify(data, null, 2);
+        const maxLength = 50000; // 最大显示 5万字符
+        if (jsonStr.length > maxLength) {
+            preview.innerText = jsonStr.substring(0, maxLength) + '\n\n... (内容过长，已截断显示)';
+        } else {
+            preview.innerText = jsonStr;
+        }
+
+        // 使用 requestAnimationFrame 避免阻塞 UI
+        requestAnimationFrame(() => {
+            delete preview.dataset.highlighted;
+            hljs.highlightElement(preview);
+        });
     } catch (e) {
         preview.innerText = `错误: ${e.message}`;
     }

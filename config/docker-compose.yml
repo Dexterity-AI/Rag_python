@@ -1,9 +1,32 @@
-version: '3.5'
-
 services:
+  # ===== Neo4j 图数据库 =====
+  neo4j:
+    container_name: rag-neo4j
+    image: neo4j:5.15-community
+    ports:
+      - "7474:7474"  # Browser 界面
+      - "7687:7687"  # Bolt 协议
+    environment:
+      - NEO4J_AUTH=${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-password}
+      - NEO4J_PLUGINS=["apoc"]
+      - NEO4J_dbms_memory_heap_initial__size=512m
+      - NEO4J_dbms_memory_heap_max__size=1G
+    volumes:
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/neo4j/data:/data
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/neo4j/logs:/logs
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/volumes/neo4j/import:/import
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:7474"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - rag-network
+
+  # ===== Milvus 依赖: etcd =====
   etcd:
     container_name: milvus-etcd
-    # 关键修改1: 升级到兼容性更好的版本
     image: quay.io/coreos/etcd:v3.5.18
     environment:
       - ETCD_AUTO_COMPACTION_MODE=revision
@@ -18,10 +41,12 @@ services:
       interval: 30s
       timeout: 20s
       retries: 3
+    networks:
+      - rag-network
 
+  # ===== Milvus 依赖: minio =====
   minio:
     container_name: milvus-minio
-    # 关键修改2: 使用仍可拉取且兼容旧数据格式的版本
     image: minio/minio:RELEASE.2024-05-28T17-19-04Z
     environment:
       MINIO_ACCESS_KEY: minioadmin
@@ -37,10 +62,12 @@ services:
       interval: 30s
       timeout: 20s
       retries: 3
+    networks:
+      - rag-network
 
+  # ===== Milvus 向量数据库 =====
   standalone:
     container_name: milvus-standalone
-    # 关键修改3: 同步升级Milvus到稳定的小版本
     image: milvusdb/milvus:v2.5.15
     command: ["milvus", "run", "standalone"]
     security_opt:
@@ -62,7 +89,10 @@ services:
     depends_on:
       - "etcd"
       - "minio"
+    networks:
+      - rag-network
 
 networks:
-  default:
-    name: milvus
+  rag-network:
+    name: rag-network
+    driver: bridge
