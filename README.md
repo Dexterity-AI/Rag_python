@@ -30,6 +30,24 @@
 - **数据采集系统** - 自动化的多源旅游数据采集与处理
 - **缓存管理** - 智能缓存机制提升响应速度
 
+## 系统架构
+
+本项目采用模块化分层架构，从查询理解到答案生成的完整 RAG 流程：
+
+<img src="docs/RAG_str.png" alt="系统架构图" width="100%">
+
+**架构说明：**
+
+| 层级 | 组件 | 功能描述 |
+|------|------|----------|
+| **查询层** | Query Translation | 用户查询翻译与理解 |
+| **规划层** | Plan / Routing | 查询规划与路由决策 |
+| **构建层** | Query Construction | 查询构建，分发至不同存储 |
+| **存储层** | GraphDB / Relational DB / VectorStore | 图数据库、关系库、向量库 |
+| **检索层** | Document / Retrieval | 文档召回与重排序 |
+| **生成层** | LLM | 大模型生成最终答案 |
+| **扩展层** | QA / Web Research | 问答增强与网络搜索 |
+
 ## 快速开始
 
 ### 环境要求
@@ -120,14 +138,17 @@ LLM_BASE_URL=your_base_url
 # 进入项目目录
 cd rag_graph
 
-# 启动 Web 服务
+# 启动 Web 服务（默认端口 8080）
 python main.py web
 
-# 或使用 uvicorn
-uvicorn web.app:create_app --reload --port 8000
+# 指定端口启动
+python main.py web --port 8000
+
+# 开发模式（热重载）
+python main.py web --reload
 ```
 
-访问 http://localhost:8000 打开 Web 界面
+访问 http://localhost:8080 打开 Web 界面
 
 **方式二：命令行界面**
 
@@ -135,11 +156,16 @@ uvicorn web.app:create_app --reload --port 8000
 # 进入项目目录
 cd rag_graph
 
-# 启动交互式 CLI（自动检查服务状态，如未启动会提示）
+# 启动交互式 CLI（默认命令，自动检查服务状态）
 python main.py
+# 或明确指定
+python main.py start
 
 # 自动启动基础设施后运行（如果服务未启动，自动启动 Docker 容器）
 python main.py start -a
+
+# 跳过服务检查（快速启动）
+python main.py start --skip-service-check
 
 # 单次查询模式
 python main.py query "北京有哪些必去的景点？"
@@ -178,25 +204,6 @@ python main.py service down
 
 # 停止并删除数据（危险！）
 python main.py service down -v
-```
-
-**服务健康检查与诊断**
-
-系统启动时会自动检查服务状态并提供友好的错误提示：
-
-- **连接失败**: 提示服务是否已启动
-- **认证错误**: 提示检查 .env 配置
-- **超时**: 提示查看日志定位问题
-
-```bash
-# 启动时自动检查服务
-python main.py start
-
-# 跳过服务检查（快速启动）
-python main.py start --skip-service-check
-
-# 自动启动基础设施后运行
-python main.py start -a
 ```
 
 ## 使用指南
