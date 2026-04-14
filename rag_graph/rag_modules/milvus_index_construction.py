@@ -22,12 +22,12 @@ if not os.getenv("HF_ENDPOINT"):
 class MilvusIndexConstructionModule:
     """Milvus索引构建模块 - 负责向量化和Milvus索引构建"""
 
-    def __init__(self, 
-                 host: str = "localhost", 
+    def __init__(self,
+                 host: str = "localhost",
                  port: int = 19530,
                  collection_name: str = "travel_knowledge",
                  dimension: int = 512,
-                 model_name: str = "Qwen/Qwen3-Embedding-8B"):
+                 model_name: str = "BAAI/bge-small-zh-v1.5"):
         """
         初始化Milvus索引构建模块
 

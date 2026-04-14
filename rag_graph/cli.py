@@ -34,19 +34,6 @@ _project_root = os.path.dirname(_current_dir)
 sys.path.insert(0, _current_dir)
 sys.path.insert(0, _project_root)
 
-# 清理可能冲突的旧路径
-_paths_to_remove = [
-    '/Users/zeng/Desktop/all_in_rag/all-in-rag/code/C9',
-    '/Users/zeng/Desktop/all_in_rag',
-]
-for _bad_path in _paths_to_remove:
-    if _bad_path in sys.path:
-        sys.path.remove(_bad_path)
-    # 也检查带斜杠的变体
-    _bad_path_slash = _bad_path.rstrip('/')
-    if _bad_path_slash in sys.path:
-        sys.path.remove(_bad_path_slash)
-
 # 导入 UI 组件
 from ui import get_theme, Logo, REPL, StreamingREPL
 
@@ -381,8 +368,11 @@ def start(
     if not skip_service_check:
         console.print(f"[{theme.info}]🔍 检查基础设施服务...[/]")
 
-        neo4j_ready = check_service_health("bolt://localhost:7687", "neo4j")
-        milvus_ready = check_service_health("localhost:19530", "milvus")
+        from config.config import DEFAULT_CONFIG
+        neo4j_ready = check_service_health(DEFAULT_CONFIG.neo4j_uri, "neo4j")
+        milvus_ready = check_service_health(
+            f"{DEFAULT_CONFIG.milvus_host}:{DEFAULT_CONFIG.milvus_port}", "milvus"
+        )
 
         if not neo4j_ready or not milvus_ready:
             console.print(f"[{theme.warning}]⚠️ 检测到服务未启动:[/]")
@@ -878,13 +868,17 @@ def service_status():
     # 额外检查服务健康状态
     console.print(f"\n[{theme.info}]🔍 健康检查:[/]")
 
+    from config.config import DEFAULT_CONFIG
+
     # 检查 Neo4j
-    neo4j_ok = check_service_health("bolt://localhost:7687", service_type="neo4j")
+    neo4j_endpoint = f"bolt://{DEFAULT_CONFIG.neo4j_uri.replace('bolt://', '').replace('neo4j://', '')}"
+    neo4j_ok = check_service_health(neo4j_endpoint, service_type="neo4j")
     neo4j_status = "✅ 健康" if neo4j_ok else "❌ 未连接"
     console.print(f"  Neo4j: {neo4j_status}")
 
     # 检查 Milvus
-    milvus_ok = check_service_health("localhost:19530", service_type="milvus")
+    milvus_endpoint = f"{DEFAULT_CONFIG.milvus_host}:{DEFAULT_CONFIG.milvus_port}"
+    milvus_ok = check_service_health(milvus_endpoint, service_type="milvus")
     milvus_status = "✅ 健康" if milvus_ok else "❌ 未连接"
     console.print(f"  Milvus: {milvus_status}")
 
@@ -997,7 +991,6 @@ class ServiceHealthChecker:
     SERVICES = {
         "neo4j": {
             "name": "Neo4j",
-            "endpoint": "bolt://localhost:7687",
             "type": "neo4j",
             "docker_name": "rag-neo4j",
             "check_interval": 2,
@@ -1005,7 +998,6 @@ class ServiceHealthChecker:
         },
         "milvus": {
             "name": "Milvus",
-            "endpoint": "localhost:19530",
             "type": "milvus",
             "docker_name": "milvus-standalone",
             "check_interval": 3,
@@ -1016,6 +1008,17 @@ class ServiceHealthChecker:
     def __init__(self, console: Console = None):
         self.console = console or Console()
         self.theme = get_theme()
+        # 从配置加载端点地址
+        from config.config import DEFAULT_CONFIG
+        self.config = DEFAULT_CONFIG
+
+    def _get_endpoint(self, service_name: str) -> str:
+        """获取服务端点地址（从配置动态构建）"""
+        if service_name == "neo4j":
+            return self.config.neo4j_uri
+        elif service_name == "milvus":
+            return f"{self.config.milvus_host}:{self.config.milvus_port}"
+        return ""
 
     def check(self, service_name: str, verbose: bool = False) -> tuple:
         """
@@ -1044,12 +1047,11 @@ class ServiceHealthChecker:
     def _check_neo4j(self, config: dict, verbose: bool) -> tuple:
         """检查 Neo4j 健康状态"""
         from neo4j import GraphDatabase
-        from config.config import DEFAULT_CONFIG
 
         try:
             driver = GraphDatabase.driver(
-                config["endpoint"],
-                auth=(DEFAULT_CONFIG.neo4j_user, DEFAULT_CONFIG.neo4j_password)
+                self.config.neo4j_uri,
+                auth=(self.config.neo4j_user, self.config.neo4j_password)
             )
             driver.verify_connectivity()
 
@@ -1061,7 +1063,7 @@ class ServiceHealthChecker:
             driver.close()
 
             details = {
-                "endpoint": config["endpoint"],
+                "endpoint": self.config.neo4j_uri,
                 "components": components,
             }
             return True, "", details
@@ -1075,8 +1077,11 @@ class ServiceHealthChecker:
         from pymilvus import connections, utility
 
         try:
-            host, port = config["endpoint"].split(":")
-            connections.connect(alias="health_check", host=host, port=port)
+            connections.connect(
+                alias="health_check",
+                host=self.config.milvus_host,
+                port=self.config.milvus_port
+            )
 
             # 获取服务器版本
             version = utility.get_server_version()
@@ -1087,7 +1092,7 @@ class ServiceHealthChecker:
             connections.disconnect("health_check")
 
             details = {
-                "endpoint": config["endpoint"],
+                "endpoint": f"{self.config.milvus_host}:{self.config.milvus_port}",
                 "version": version,
                 "collections": len(collections),
             }

@@ -36,7 +36,7 @@ async def lifespan(app: FastAPI):
             print(f"后台初始化异常: {e}")
 
     # Start the initialization in a thread
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     app.state.init_task = loop.run_in_executor(None, init_rag)
     
     yield

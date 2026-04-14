@@ -73,9 +73,73 @@ class GraphRAGConfig:
     collector_save_normalized: bool = os.getenv("COLLECTOR_SAVE_NORMALIZED", "true").lower() == "true"
 
     def __post_init__(self):
-        """初始化后的处理"""
-        # LightRAG使用Round-robin策略，无需权重验证
-        pass
+        """初始化后的处理 - 带错误处理的类型转换"""
+        # 安全转换数值类型，无效值时使用默认值
+        try:
+            self.milvus_port = int(self.milvus_port)
+        except (ValueError, TypeError):
+            print(f"警告: MILVUS_PORT 值 '{self.milvus_port}' 无效，使用默认值 19530")
+            self.milvus_port = 19530
+
+        try:
+            self.top_k = int(self.top_k)
+        except (ValueError, TypeError):
+            print(f"警告: TOP_K 值 '{self.top_k}' 无效，使用默认值 5")
+            self.top_k = 5
+
+        try:
+            self.temperature = float(self.temperature)
+        except (ValueError, TypeError):
+            print(f"警告: TEMPERATURE 值 '{self.temperature}' 无效，使用默认值 0.1")
+            self.temperature = 0.1
+
+        try:
+            self.max_tokens = int(self.max_tokens)
+        except (ValueError, TypeError):
+            print(f"警告: MAX_TOKENS 值 '{self.max_tokens}' 无效，使用默认值 2048")
+            self.max_tokens = 2048
+
+        try:
+            self.chunk_size = int(self.chunk_size)
+        except (ValueError, TypeError):
+            print(f"警告: CHUNK_SIZE 值 '{self.chunk_size}' 无效，使用默认值 500")
+            self.chunk_size = 500
+
+        try:
+            self.chunk_overlap = int(self.chunk_overlap)
+        except (ValueError, TypeError):
+            print(f"警告: CHUNK_OVERLAP 值 '{self.chunk_overlap}' 无效，使用默认值 50")
+            self.chunk_overlap = 50
+
+        try:
+            self.max_graph_depth = int(self.max_graph_depth)
+        except (ValueError, TypeError):
+            print(f"警告: MAX_GRAPH_DEPTH 值 '{self.max_graph_depth}' 无效，使用默认值 2")
+            self.max_graph_depth = 2
+
+        try:
+            self.router_cache_size = int(self.router_cache_size)
+        except (ValueError, TypeError):
+            print(f"警告: ROUTER_CACHE_SIZE 值 '{self.router_cache_size}' 无效，使用默认值 1000")
+            self.router_cache_size = 1000
+
+        try:
+            self.toolbbrowser_timeout = int(self.toolbbrowser_timeout)
+        except (ValueError, TypeError):
+            print(f"警告: TOOLBBROWSER_TIMEOUT 值 '{self.toolbbrowser_timeout}' 无效，使用默认值 60")
+            self.toolbbrowser_timeout = 60
+
+        try:
+            self.scrapling_timeout = int(self.scrapling_timeout)
+        except (ValueError, TypeError):
+            print(f"警告: SCRAPLING_TIMEOUT 值 '{self.scrapling_timeout}' 无效，使用默认值 30")
+            self.scrapling_timeout = 30
+
+        try:
+            self.scrapling_retry_count = int(self.scrapling_retry_count)
+        except (ValueError, TypeError):
+            print(f"警告: SCRAPLING_RETRY_COUNT 值 '{self.scrapling_retry_count}' 无效，使用默认值 3")
+            self.scrapling_retry_count = 3
 
     @classmethod
     def from_dict(cls, config_dict: Dict[str, Any]) -> 'GraphRAGConfig':

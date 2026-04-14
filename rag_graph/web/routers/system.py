@@ -135,7 +135,7 @@ async def initialize_system(request: Request):
             app_state.init_progress = f"初始化发生异常: {str(e)}"
             print(f"后台初始化异常: {e}")
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     app_state.init_task = loop.run_in_executor(None, init_rag)
     
     return {"status": "started"}

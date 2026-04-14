@@ -11,7 +11,6 @@ from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
 from langchain_core.documents import Document
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
-import os
 from openai import OpenAI
 from dotenv import load_dotenv
 from cache import get_cache_manager

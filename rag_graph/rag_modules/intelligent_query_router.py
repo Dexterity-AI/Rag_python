@@ -5,6 +5,7 @@
 - 图RAG检索：适合复杂的关系推理和知识发现
 """
 
+import hashlib
 import logging
 import re
 from typing import List, Dict, Tuple, Any, Optional
@@ -352,16 +353,16 @@ class IntelligentQueryRouter:
             # 先添加图RAG结果（通常质量更高）
             if i < len(graph_docs):
                 doc = graph_docs[i]
-                content_hash = hash(doc.page_content[:100])
+                content_hash = hashlib.md5(doc.page_content[:100].encode()).hexdigest()[:16]
                 if content_hash not in seen_contents:
                     seen_contents.add(content_hash)
                     doc.metadata["search_source"] = "graph_rag"
                     combined_docs.append(doc)
-            
+
             # 再添加传统检索结果
             if i < len(traditional_docs):
                 doc = traditional_docs[i]
-                content_hash = hash(doc.page_content[:100])
+                content_hash = hashlib.md5(doc.page_content[:100].encode()).hexdigest()[:16]
                 if content_hash not in seen_contents:
                     seen_contents.add(content_hash)
                     doc.metadata["search_source"] = "traditional"

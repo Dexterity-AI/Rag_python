@@ -582,5 +582,9 @@ class GraphDataPreparationModule:
 
     
     def __del__(self):
-        """析构函数，确保关闭连接"""
-        self.close() 
+        """析构函数，确保关闭连接（使用异常处理避免析构时的错误）"""
+        try:
+            self.close()
+        except Exception:
+            # 析构时忽略所有错误，避免在解释器关闭时出现问题
+            pass 

@@ -19,7 +19,7 @@ class CollectRequest(BaseModel):
 
 @router.post("/run")
 async def collect_run(request: Request, body: CollectRequest):
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     
     async def event_generator():
         queue = asyncio.Queue()

@@ -4,6 +4,7 @@
 结合图结构检索和向量检索，使用Round-robin轮询策略
 """
 
+import hashlib
 import json
 import logging
 import re
@@ -564,8 +565,7 @@ class HybridRetrievalModule:
                     
                     # 添加源实体的详细信息
                     if source_entity.entity_type in ["Attraction", "City", "Region"]:
-                        newline = '\n'
-                        content_parts.append(f"详情: {source_entity.value_content.split(newline)[0]}")
+                        content_parts.append(f"详情: {source_entity.value_content.split('\n')[0]}")
                     
                     results.append(RetrievalResult(
                         content='\n'.join(content_parts),
@@ -882,12 +882,12 @@ class HybridRetrievalModule:
         seen_doc_ids = set()
         max_len = max(len(dual_docs), len(vector_docs))
         origin_len = len(dual_docs) + len(vector_docs)
-        
+
         for i in range(max_len):
             # 先添加双层检索结果
             if i < len(dual_docs):
                 doc = dual_docs[i]
-                doc_id = doc.metadata.get("node_id", hash(doc.page_content))
+                doc_id = doc.metadata.get("node_id", hashlib.md5(doc.page_content.encode()).hexdigest()[:16])
                 if doc_id not in seen_doc_ids:
                     seen_doc_ids.add(doc_id)
                     doc.metadata["search_method"] = "dual_level"
@@ -895,11 +895,11 @@ class HybridRetrievalModule:
                     # 设置统一的final_score字段
                     doc.metadata["final_score"] = doc.metadata.get("relevance_score", 0.0)
                     merged_docs.append(doc)
-            
+
             # 再添加向量检索结果
             if i < len(vector_docs):
                 doc = vector_docs[i]
-                doc_id = doc.metadata.get("node_id", hash(doc.page_content))
+                doc_id = doc.metadata.get("node_id", hashlib.md5(doc.page_content.encode()).hexdigest()[:16])
                 if doc_id not in seen_doc_ids:
                     seen_doc_ids.add(doc_id)
                     doc.metadata["search_method"] = "vector_enhanced"
